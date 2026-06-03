@@ -3,3 +3,12 @@
 node_modules/
 .vercel/
 *.log
+*.png
+*.pdf
+!algorithm-driven-culture.pdf
+dist/
+build/
+.env
+.idea/
+
+.frontend-slides/

@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algorithm-Driven Culture</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Hanken+Grotesk:wght@400;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+    <style>
+        /* ===========================================
+           THEME: COBALT GRID
+           Edit these variables to adjust the deck globally.
+           =========================================== */
+        :root {
+            --stage-bg: #d8d2c2;
+            --slide-bg: #f0ebde;
+            --paper: #f0ebde;
+            --paper-2: #e6e0ce;
+            --ink: #1f2be0;
+            --ink-soft: #5560e5;
+            --grid: rgba(31, 43, 224, 0.10);
+            --ink-faint: rgba(31, 43, 224, 0.18);
+            --font-display: "Newsreader", Georgia, serif;
+            --font-body: "Hanken Grotesk", sans-serif;
+            --font-mono: "DM Mono", monospace;
+            --ease: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* ===========================================
+           FIXED 16:9 STAGE: MANDATORY BASE STYLES
+           Include this ENTIRE file in every presentation.
+           Slides are authored at 1920x1080 and scaled as a whole.
+           =========================================== */
+
+        /* 1. Lock the browser viewport */
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: var(--stage-bg, #000);
+        }
+
+        /* 2. Full-window deck viewport */
+        .deck-viewport {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            background: var(--stage-bg, #000);
+        }
+
+        /* 3. Fixed 16:9 design canvas.
+           JavaScript sets transform: translate(...) scale(...). */
+        .deck-stage {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            transform-origin: 0 0;
+            background: var(--slide-bg, #fff);
+        }
+
+        /* 4. Slides stack inside the fixed stage.
+           Content must be laid out at 1920x1080, not reflowed per device. */
+        .slide {
+            position: absolute;
+            inset: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            display: block;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            background: var(--slide-bg, #fff);
+        }
+
+        .slide.active,
+        .slide.visible {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 1;
+        }
+
+        /* 5. Keep media inside authored slide bounds */
+        img,
+        video,
+        canvas,
+        svg {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* 6. Presentation chrome stays outside the slide design system */
+        .deck-controls {
+            position: fixed;
+            left: 50%;
+            bottom: 22px;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+
+        /* 7. Print one fixed-size slide per page */
+        @media print {
+            html,
+            body {
+                width: 1920px;
+                height: auto;
+                overflow: visible;
+                background: #fff;
+            }
+
+            .deck-viewport {
+                position: static;
+                overflow: visible;
+                background: #fff;
+            }
+
+            .deck-stage {
+                position: static;
+                width: auto;
+                height: auto;
+                transform: none !important;
+                background: none;
+            }
+
+            .slide {
+                position: relative;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                pointer-events: auto !important;
+                width: 1920px;
+                height: 1080px;
+                break-after: page;
+                page-break-after: always;
+            }
+
+            .slide:last-child {
+                break-after: auto;
+                page-break-after: auto;
+            }
+
+            .deck-controls {
+                display: none !important;
+            }
+
+            .deck-progress,
+            .edit-hotzone,
+            .edit-toggle {
+                display: none !important;
+            }
+        }
+
+        /* 8. Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.2s !important;
+            }
+        }
+
+        /* ===========================================
+           RESET AND UNIVERSAL SLIDE CHROME
+           Every slide inherits the graph grid and cobalt frame.
+           =========================================== */
+        * {
+            box-sizing: border-box;
+        }
+
+        button {
+            font: inherit;
+        }
+
+        .slide {
+            color: var(--ink);
+            font-family: var(--font-body);
+            transition: opacity 280ms ease;
+        }
+
+        .slide::before {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            content: "";
+            background-image:
+                linear-gradient(to right, var(--grid) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+            background-size: 48px 48px;
+        }
+
+        .slide > * {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hairline {
+            position: absolute;
+            left: 70px;
+            right: 70px;
+            z-index: 5;
+            height: 2px;
+            background: var(--ink);
+        }
+
+        .hairline.top {
+            top: 50px;
+        }
+
+        .hairline.bottom {
+            bottom: 50px;
+        }
+
+        .page-num,
+        .nav-hint {
+            position: absolute;
+            bottom: 72px;
+            z-index: 5;
+            color: var(--ink);
+            font-family: var(--font-mono);
+            font-size: 15px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .page-num {
+            right: 70px;
+        }
+
+        .nav-hint {
+            left: 70px;
+            opacity: .52;
+        }
+
+        .slide-frame {
+            position: absolute;
+            inset: 88px 84px 116px;
+        }
+
+        .micro,
+        .mono {
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        .micro {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 4px;
+        }
+
+        .mono {
+            font-family: var(--font-mono);
+            font-size: 15px;
+            letter-spacing: 1px;
+        }
+
+        .display {
+            margin: 0;
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-weight: 400;
+            letter-spacing: -5px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            min-height: 86px;
+            padding-bottom: 18px;
+            border-bottom: 2px solid var(--ink);
+        }
+
+        .topbar h2 {
+            margin: 0;
+            font-family: var(--font-display);
+            font-size: 78px;
+            font-weight: 400;
+            letter-spacing: -3px;
+            line-height: .9;
+        }
+
+        .section-kicker {
+            margin-bottom: 3px;
+        }
+
+        .topbar-tag {
+            padding-bottom: 5px;
+            text-align: right;
+        }
+
+        /* ===========================================
+           SUBTLE ENTRANCE MOTION
+           PDF export captures the final visual state.
+           =========================================== */
+        .reveal {
+            opacity: 0;
+            transform: translateY(18px);
+            transition:
+                opacity 480ms var(--ease),
+                transform 480ms var(--ease);
+        }
+
+        .slide.visible .reveal {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .d1 { transition-delay: 60ms; }
+        .d2 { transition-delay: 130ms; }
+        .d3 { transition-delay: 200ms; }
+        .d4 { transition-delay: 270ms; }
+        .d5 { transition-delay: 340ms; }
+
+        /* ===========================================
+           REUSABLE DECORATIONS
+           Rectangular glitches, QR patches, nodes, and streams.
+           =========================================== */
+        .glitch {
+            position: absolute;
+            z-index: 1;
+            display: flex;
+            width: 420px;
+            flex-direction: column;
+            gap: 13px;
+            opacity: .9;
+        }
+
+        .glitch.right {
+            top: 152px;
+            right: 74px;
+            align-items: end;
+        }
+
+        .glitch.left {
+            bottom: 160px;
+            left: 76px;
+            align-items: start;
+        }
+
+        .glitch i {
+            display: block;
+            height: 22px;
+            background: repeating-linear-gradient(
+                90deg,
+                var(--ink) 0,
+                var(--ink) 3px,
+                transparent 3px,
+                transparent 9px
+            );
+        }
+
+        .glitch i:nth-child(1) { width: 102px; }
+        .glitch i:nth-child(2) { width: 154px; }
+        .glitch i:nth-child(3) { width: 210px; }
+        .glitch i:nth-child(4) { width: 268px; }
+        .glitch i:nth-child(5) { width: 326px; }
+        .glitch i:nth-child(6) { width: 388px; }
+        .glitch i:nth-child(7) { width: 326px; }
+        .glitch i:nth-child(8) { width: 268px; }
+        .glitch i:nth-child(9) { width: 210px; }
+        .glitch i:nth-child(10) { width: 154px; }
+        .glitch i:nth-child(11) { width: 102px; }
+
+        .qr {
+            position: absolute;
+            z-index: 4;
+            display: grid;
+            width: 138px;
+            height: 138px;
+            padding: 7px;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 5px;
+            background: var(--paper);
+            box-shadow: 0 0 0 2px var(--paper);
+        }
+
+        .qr b {
+            background: var(--ink);
+        }
+
+        .qr b.off {
+            opacity: .08;
+        }
+
+        .network {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .network-line {
+            position: absolute;
+            height: 2px;
+            transform-origin: left center;
+            background: var(--ink);
+            opacity: .36;
+        }
+
+        .network-node {
+            position: absolute;
+            display: grid;
+            width: 26px;
+            height: 26px;
+            place-items: center;
+            border: 2px solid var(--ink);
+            background: var(--paper);
+        }
+
+        .network-node.large {
+            width: 170px;
+            height: 170px;
+            padding: 12px;
+            font-family: var(--font-display);
+            font-size: 42px;
+            letter-spacing: -2px;
+            line-height: .9;
+            text-align: center;
+        }
+
+        .network-node.small {
+            width: 74px;
+            height: 74px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .diagram-arrow {
+            color: var(--ink);
+            font-family: var(--font-mono);
+            font-size: 32px;
+            line-height: 1;
+        }
+
+        /* ===========================================
+           SLIDE 1: TITLE
+           The cover mirrors the selected style preview.
+           =========================================== */
+        .cover-frame {
+            position: absolute;
+            inset: 82px 84px 112px;
+        }
+
+        .cover-masthead {
+            display: flex;
+            justify-content: space-between;
+            padding-bottom: 19px;
+            border-bottom: 2px solid var(--ink);
+        }
+
+        .cover-title {
+            width: 1240px;
+            margin: 112px 0 0;
+            font-size: 190px;
+            line-height: .82;
+        }
+
+        .cover-subtitle {
+            width: 880px;
+            margin: 58px 0 0;
+            font-size: 40px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            line-height: 1.18;
+        }
+
+        .cover-terms {
+            position: absolute;
+            right: 42px;
+            bottom: 68px;
+            width: 610px;
+            padding: 18px 0;
+            border-top: 2px solid var(--ink);
+            border-bottom: 2px solid var(--ink);
+            font-family: var(--font-mono);
+            font-size: 16px;
+            letter-spacing: 1px;
+            line-height: 1.8;
+            text-align: right;
+            text-transform: uppercase;
+        }
+
+        .cover .glitch {
+            top: 218px;
+            right: 46px;
+        }
+
+        .cover .qr {
+            right: 560px;
+            bottom: 118px;
+            transform: rotate(-4deg);
+        }
+
+        /* ===========================================
+           SLIDE 2: DIGITAL GRAVITY
+           Network nodes show platforms attracting global behavior.
+           =========================================== */
+        .gravity-layout {
+            display: grid;
+            height: 670px;
+            margin-top: 34px;
+            grid-template-columns: 740px 1fr;
+            gap: 58px;
+        }
+
+        .gravity-copy {
+            padding-top: 42px;
+        }
+
+        .gravity-copy .display {
+            font-size: 116px;
+            line-height: .88;
+        }
+
+        .question {
+            width: 660px;
+            margin: 42px 0 0;
+            padding-top: 20px;
+            border-top: 2px solid var(--ink);
+            font-family: var(--font-display);
+            font-size: 42px;
+            line-height: 1.08;
+        }
+
+        .gravity-tags {
+            display: flex;
+            gap: 16px;
+            margin-top: 38px;
+        }
+
+        .tag {
+            padding: 10px 13px;
+            border: 2px solid var(--ink);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .gravity-field {
+            position: relative;
+            margin-top: 22px;
+            border-left: 2px solid var(--ink);
+        }
+
+        .gravity-field .network-node.large:first-of-type {
+            top: 102px;
+            left: 184px;
+        }
+
+        .gravity-field .red-node {
+            right: 98px;
+            bottom: 94px;
+        }
+
+        .gravity-field .n1 { top: 38px; right: 106px; }
+        .gravity-field .n2 { top: 264px; right: 16px; }
+        .gravity-field .n3 { right: 368px; bottom: 24px; }
+        .gravity-field .n4 { bottom: 142px; left: 42px; }
+        .gravity-field .n5 { top: 90px; left: 16px; }
+        .gravity-field .l1 { top: 145px; left: 77px; width: 170px; transform: rotate(19deg); }
+        .gravity-field .l2 { top: 156px; left: 357px; width: 358px; transform: rotate(2deg); }
+        .gravity-field .l3 { top: 335px; left: 344px; width: 366px; transform: rotate(24deg); }
+        .gravity-field .l4 { top: 500px; left: 104px; width: 427px; transform: rotate(-21deg); }
+        .gravity-field .l5 { top: 307px; left: 618px; width: 240px; transform: rotate(37deg); }
+
+        .vertical-label {
+            position: absolute;
+            right: -14px;
+            top: 178px;
+            color: var(--ink);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            writing-mode: vertical-rl;
+        }
+
+        /* ===========================================
+           SLIDE 3: COMPARISON TABLE
+           A strong side-by-side contrast between TikTok and RED.
+           =========================================== */
+        .twins-table {
+            display: grid;
+            margin-top: 36px;
+            grid-template-columns: 270px 1fr 1fr;
+            border-top: 2px solid var(--ink);
+        }
+
+        .twins-table > div {
+            min-height: 104px;
+            padding: 22px 20px;
+            border-bottom: 1px solid var(--ink-faint);
+        }
+
+        .twins-table .column-head {
+            min-height: 118px;
+            border-bottom: 2px solid var(--ink);
+        }
+
+        .twins-table .axis {
+            padding-left: 0;
+            color: var(--ink);
+            font-family: var(--font-mono);
+            font-size: 15px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .platform-name {
+            margin: 0;
+            font-family: var(--font-display);
+            font-size: 58px;
+            font-weight: 400;
+            letter-spacing: -2px;
+            line-height: 1;
+        }
+
+        .platform-sub {
+            margin-top: 8px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .cell-main {
+            margin: 0;
+            font-family: var(--font-display);
+            font-size: 32px;
+            line-height: 1.04;
+        }
+
+        .cell-sub {
+            margin: 8px 0 0;
+            font-size: 17px;
+            line-height: 1.28;
+        }
+
+        /* ===========================================
+           SLIDE 4: RECOMMENDATION ENGINES
+           Two compact feedback loops reveal distinct algorithmic cultures.
+           =========================================== */
+        .engine-grid {
+            display: grid;
+            height: 622px;
+            margin-top: 42px;
+            grid-template-columns: 1fr 1fr;
+            gap: 52px;
+        }
+
+        .engine {
+            position: relative;
+            border-top: 2px solid var(--ink);
+        }
+
+        .engine-head {
+            display: flex;
+            justify-content: space-between;
+            padding: 18px 0;
+            border-bottom: 1px solid var(--ink-faint);
+        }
+
+        .engine-head h3 {
+            margin: 0;
+            font-family: var(--font-display);
+            font-size: 58px;
+            font-weight: 400;
+            letter-spacing: -2px;
+        }
+
+        .feedback {
+            display: grid;
+            grid-template-columns: 1fr 70px 1fr;
+            row-gap: 26px;
+            align-items: center;
+            margin-top: 36px;
+        }
+
+        .feedback-step {
+            min-height: 106px;
+            padding: 18px;
+            border: 2px solid var(--ink);
+        }
+
+        .feedback-step strong {
+            display: block;
+            font-family: var(--font-display);
+            font-size: 31px;
+            font-weight: 400;
+            line-height: 1;
+        }
+
+        .feedback-step span {
+            display: block;
+            margin-top: 10px;
+            font-size: 15px;
+            line-height: 1.25;
+        }
+
+        .feedback .diagram-arrow {
+            text-align: center;
+        }
+
+        .engine-note {
+            position: absolute;
+            bottom: 6px;
+            left: 0;
+            right: 0;
+            padding-top: 15px;
+            border-top: 1px solid var(--ink);
+            font-family: var(--font-mono);
+            font-size: 15px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* ===========================================
+           SLIDE 5: AI CREATION TOOLS
+           A pipeline shows how the creator barrier gets lower.
+           =========================================== */
+        .creator-layout {
+            display: grid;
+            height: 652px;
+            margin-top: 40px;
+            grid-template-columns: 450px 1fr;
+            gap: 62px;
+        }
+
+        .creator-statement {
+            padding-top: 26px;
+        }
+
+        .creator-statement .display {
+            font-size: 94px;
+            line-height: .9;
+        }
+
+        .creator-statement p {
+            width: 390px;
+            margin: 32px 0 0;
+            font-size: 22px;
+            line-height: 1.36;
+        }
+
+        .creation-pipeline {
+            display: grid;
+            grid-template-columns: 1fr 48px 1fr 48px 1fr;
+            align-content: center;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .tool-column {
+            border-top: 2px solid var(--ink);
+        }
+
+        .tool-column h3 {
+            margin: 0;
+            padding: 18px 0 14px;
+            border-bottom: 2px solid var(--ink);
+            font-family: var(--font-display);
+            font-size: 42px;
+            font-weight: 400;
+            letter-spacing: -1px;
+        }
+
+        .tool-column p {
+            margin: 0;
+            padding: 18px 0;
+            border-bottom: 1px solid var(--ink-faint);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            letter-spacing: 1px;
+            line-height: 1.25;
+            text-transform: uppercase;
+        }
+
+        .pipeline-arrow {
+            color: var(--ink);
+            font-family: var(--font-mono);
+            font-size: 32px;
+            text-align: center;
+        }
+
+        .creation-keywords {
+            position: absolute;
+            right: 0;
+            bottom: 8px;
+            display: flex;
+            gap: 15px;
+        }
+
+        /* ===========================================
+           SLIDE 6: SOCIAL COMMERCE
+           Two conversion paths show attention becoming a purchase.
+           =========================================== */
+        .commerce-grid {
+            display: grid;
+            height: 640px;
+            margin-top: 40px;
+            grid-template-columns: 1fr 1fr;
+            gap: 62px;
+        }
+
+        .commerce-path {
+            border-top: 2px solid var(--ink);
+        }
+
+        .commerce-path h3 {
+            margin: 0;
+            padding: 18px 0;
+            border-bottom: 1px solid var(--ink-faint);
+            font-family: var(--font-display);
+            font-size: 58px;
+            font-weight: 400;
+            letter-spacing: -2px;
+        }
+
+        .path-steps {
+            display: grid;
+            grid-template-columns: 1fr 46px 1fr 46px 1fr;
+            align-items: stretch;
+            margin-top: 40px;
+        }
+
+        .path-step {
+            min-height: 190px;
+            padding: 18px 16px;
+            border: 2px solid var(--ink);
+        }
+
+        .path-step .step-num {
+            display: block;
+            margin-bottom: 24px;
+            font-family: var(--font-mono);
+            font-size: 15px;
+        }
+
+        .path-step strong {
+            display: block;
+            font-family: var(--font-display);
+            font-size: 31px;
+            font-weight: 400;
+            line-height: 1;
+        }
+
+        .path-step span {
+            display: block;
+            margin-top: 13px;
+            font-size: 15px;
+            line-height: 1.25;
+        }
+
+        .path-arrow {
+            display: grid;
+            place-items: center;
+            font-family: var(--font-mono);
+            font-size: 30px;
+        }
+
+        .commerce-callout {
+            margin: 38px 0 0;
+            padding-top: 16px;
+            border-top: 1px solid var(--ink);
+            font-family: var(--font-mono);
+            font-size: 16px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* ===========================================
+           SLIDE 7: ALGORITHMIC SHADOW
+           A brief critical pause before the conclusion.
+           =========================================== */
+        .shadow-layout {
+            display: grid;
+            height: 676px;
+            margin-top: 34px;
+            grid-template-columns: 690px 1fr;
+            gap: 84px;
+        }
+
+        .shadow-title {
+            padding-top: 22px;
+        }
+
+        .shadow-title .display {
+            font-size: 120px;
+            line-height: .88;
+        }
+
+        .shadow-title p {
+            width: 560px;
+            margin-top: 42px;
+            padding-top: 19px;
+            border-top: 2px solid var(--ink);
+            font-size: 24px;
+            line-height: 1.32;
+        }
+
+        .risk-list {
+            border-top: 2px solid var(--ink);
+        }
+
+        .risk {
+            display: grid;
+            min-height: 112px;
+            grid-template-columns: 92px 1fr 198px;
+            align-items: center;
+            border-bottom: 1px solid var(--ink-faint);
+        }
+
+        .risk-num,
+        .risk-tag {
+            font-family: var(--font-mono);
+            font-size: 14px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .risk-name {
+            font-family: var(--font-display);
+            font-size: 40px;
+            line-height: 1;
+        }
+
+        .risk-tag {
+            text-align: right;
+        }
+
+        /* ===========================================
+           SLIDE 8: CONCLUSION
+           Closing manifesto with a mirrored glitch column.
+           =========================================== */
+        .closing-copy {
+            position: absolute;
+            top: 132px;
+            right: 104px;
+            width: 1210px;
+            text-align: right;
+        }
+
+        .closing-copy .micro {
+            margin-bottom: 40px;
+        }
+
+        .closing-title {
+            font-size: 138px;
+            line-height: .9;
+        }
+
+        .closing-quote {
+            margin: 48px 0 0 auto;
+            width: 930px;
+            padding-top: 20px;
+            border-top: 2px solid var(--ink);
+            font-family: var(--font-display);
+            font-size: 39px;
+            line-height: 1.1;
+        }
+
+        .closing-points {
+            position: absolute;
+            right: 104px;
+            bottom: 114px;
+            display: grid;
+            width: 1210px;
+            grid-template-columns: repeat(3, 1fr);
+            border-top: 2px solid var(--ink);
+        }
+
+        .closing-points div {
+            min-height: 126px;
+            padding: 20px 20px 0 0;
+            border-right: 1px solid var(--ink-faint);
+        }
+
+        .closing-points div:last-child {
+            padding-left: 20px;
+            border-right: 0;
+        }
+
+        .closing-points div:nth-child(2) {
+            padding-left: 20px;
+        }
+
+        .closing-points span {
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .closing-points strong {
+            display: block;
+            margin-top: 13px;
+            font-family: var(--font-display);
+            font-size: 30px;
+            font-weight: 400;
+            line-height: 1;
+        }
+
+        .closing .qr {
+            bottom: 128px;
+            left: 394px;
+            transform: rotate(5deg);
+        }
+
+        /* ===========================================
+           OUTSIDE-STAGE UI
+           Progress, edit controls, and edit-state treatment.
+           =========================================== */
+        .deck-progress {
+            position: fixed;
+            right: 18px;
+            bottom: 16px;
+            z-index: 1000;
+            padding: 7px 9px;
+            border: 1px solid rgba(31, 43, 224, .35);
+            color: var(--ink);
+            background: rgba(240, 235, 222, .9);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        .edit-hotzone {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 10000;
+            width: 80px;
+            height: 80px;
+            cursor: pointer;
+        }
+
+        .edit-toggle {
+            position: fixed;
+            top: 14px;
+            left: 14px;
+            z-index: 10001;
+            padding: 8px 11px;
+            border: 1px solid var(--ink);
+            color: var(--ink);
+            background: var(--paper);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            letter-spacing: 1px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 240ms ease;
+        }
+
+        .edit-toggle.show,
+        .edit-toggle.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        body.editing [data-editable="true"] {
+            outline: 2px dashed var(--ink);
+            outline-offset: 5px;
+            cursor: text;
+        }
+    </style>
+</head>
+<body>
+    <!-- ===========================================
+         PRESENTATION STAGE
+         Each section is one fixed-size 1920x1080 slide.
+         =========================================== -->
+    <div class="deck-viewport">
+        <main class="deck-stage" id="deckStage">
+            <!-- Slide 1: Cover -->
+            <section class="slide cover active" aria-label="Title slide">
+                <div class="hairline top"></div>
+                <div class="hairline bottom"></div>
+                <div class="page-num">01 / 08</div>
+                <div class="nav-hint">Arrow keys / space / swipe</div>
+                <div class="cover-frame">
+                    <header class="cover-masthead reveal d1">
+                        <p class="mono" data-editable="true">Global Tech / Cultural Power</p>
+                        <p class="mono" data-editable="true">English Class Presentation / 2026</p>
+                    </header>
+                    <h1 class="display cover-title reveal d2" data-editable="true">Algorithm-<br>Driven<br>Culture</h1>
+                    <p class="cover-subtitle reveal d3" data-editable="true">How TikTok and RED reshape global social media</p>
+                    <p class="cover-terms reveal d4" data-editable="true">Globalization / Glocalization<br>Digital Gravity / Social Commerce</p>
+                </div>
+                <div class="glitch right" aria-hidden="true">
+                    <i></i><i></i><i></i><i></i><i></i><i></i>
+                    <i></i><i></i><i></i><i></i><i></i>
+                </div>
+                <div class="qr" aria-hidden="true">
+                    <b></b><b></b><b class="off"></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b>
+                    <b></b><b class="off"></b><b></b><b></b><b></b><b class="off"></b><b></b><b></b>
+                    <b class="off"></b><b></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b><b></b>
+                    <b></b><b></b><b class="off"></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b>
+                    <b></b><b class="off"></b><b></b><b></b><b></b><b class="off"></b><b></b><b></b>
+                    <b class="off"></b><b></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b><b></b>
+                    <b></b><b></b><b class="off"></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b>
+                    <b></b><b class="off"></b><b></b><b></b><b></b><b class="off"></b><b></b><b></b>
+                </div>
+            </section>
+
+            <!-- Slide 2: Opening question -->
+            <section class="slide" aria-label="A new digital gravity field">
+                <div class="hairline top"></div>
+                <div class="hairline bottom"></div>
+                <div class="page-num">02 / 08</div>
+                <div class="nav-hint">Algorithm-Driven Culture</div>
+                <div class="slide-frame">
+                    <header class="topbar reveal d1">
+                        <h2 data-editable="true">A New Digital Gravity Field</h2>
+                        <p class="mono topbar-tag" data-editable="true">Opening Question / 01</p>
+                    </header>
+                    <div class="gravity-layout">
+                        <div class="gravity-copy reveal d2">
+                            <p class="micro" data-editable="true">Global digital spaces</p>
+                            <p class="display" data-editable="true">Why do<br>users gather?</p>
+                            <p class="question" data-editable="true">How can Chinese apps attract young users worldwide without relying only on traditional promotion?</p>
+                            <div class="gravity-tags">
+                                <span class="tag" data-editable="true">Globalization</span>
+                                <span class="tag" data-editable="true">Glocalization</span>
+                                <span class="tag" data-editable="true">Digital Gravity</span>
+                            </div>
+                        </div>
+                        <div class="gravity-field reveal d3" aria-label="Diagram of TikTok and RED attracting global users">
+                            <div class="network">
+                                <div class="network-line l1"></div>
+                                <div class="network-line l2"></div>
+                                <div class="network-line l3"></div>
+                                <div class="network-line l4"></div>
+                                <div class="network-line l5"></div>
+                                <div class="network-node large">TikTok</div>
+                                <div class="network-node large red-node">RED</div>
+                                <div class="network-node small n1">Youth<br>Culture</div>
+                                <div class="network-node small n2">Trends</div>
+                                <div class="network-node small n3">Search</div>
+                                <div class="network-node small n4">Taste</div>
+                                <div class="network-node small n5">Global<br>Users</div>
+                            </div>
+                            <div class="vertical-label">Recommendation systems / cultural circulation</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 3: TikTok versus RED -->
+            <section class="slide" aria-label="The algorithmic twins comparison">
+                <div class="hairline top"></div>
+                <div class="hairline bottom"></div>
+                <div class="page-num">03 / 08</div>
+                <div class="nav-hint">Algorithm-Driven Culture</div>
+                <div class="slide-frame">
+                    <header class="topbar reveal d1">
+                        <h2 data-editable="true">The Algorithmic Twins</h2>
+                        <p class="mono topbar-tag" data-editable="true">TikTok vs RED / 02</p>
+                    </header>
+                    <div class="twins-table reveal d2">
+                        <div class="column-head axis">Comparison<br>Lens</div>
+                        <div class="column-head">
+                            <p class="platform-name" data-editable="true">TikTok</p>
+                            <p class="platform-sub" data-editable="true">Discovery first</p>
+                        </div>
+                        <div class="column-head">
+                            <p class="platform-name" data-editable="true">RED</p>
+                            <p class="platform-sub" data-editable="true">Decision first</p>
+                        </div>
+
+                        <div class="axis" data-editable="true">Core Engine</div>
+                        <div><p class="cell-main" data-editable="true">Interest Graph</p><p class="cell-sub" data-editable="true">What may capture your attention next?</p></div>
+                        <div><p class="cell-main" data-editable="true">Social Graph + Intent Graph</p><p class="cell-sub" data-editable="true">What lifestyle decision are you researching?</p></div>
+
+                        <div class="axis" data-editable="true">Key Action</div>
+                        <div><p class="cell-main" data-editable="true">Swipe</p><p class="cell-sub" data-editable="true">Fast, continuous discovery</p></div>
+                        <div><p class="cell-main" data-editable="true">Search</p><p class="cell-sub" data-editable="true">Focused, review-led exploration</p></div>
+
+                        <div class="axis" data-editable="true">AI Role</div>
+                        <div><p class="cell-main" data-editable="true">A prophet</p><p class="cell-sub" data-editable="true">Predicts and amplifies hidden interests</p></div>
+                        <div><p class="cell-main" data-editable="true">An external brain</p><p class="cell-sub" data-editable="true">Supports lifestyle decisions</p></div>
+
+                        <div class="axis" data-editable="true">Commerce</div>
+                        <div><p class="cell-main" data-editable="true">Interest-based</p><p class="cell-sub" data-editable="true">Products find people</p></div>
+                        <div><p class="cell-main" data-editable="true">Buyer-driven</p><p class="cell-sub" data-editable="true">People investigate products</p></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 4: Recommendation logic -->
+            <section class="slide" aria-label="The engine of recommendation">
+                <div class="hairline top"></div>
+                <div class="hairline bottom"></div>
+                <div class="page-num">04 / 08</div>
+                <div class="nav-hint">Algorithm-Driven Culture</div>
+                <div class="slide-frame">
+                    <header class="topbar reveal d1">
+                        <h2 data-editable="true">Tech Key 1: Recommendation</h2>
+                        <p class="mono topbar-tag" data-editable="true">Different algorithms create different cultures</p>
+                    </header>
+                    <div class="engine-grid">
+                        <article class="engine reveal d2">
+                            <header class="engine-head">
+                                <h3 data-editable="true">TikTok</h3>
+                                <p class="mono" data-editable="true">Real-time loop</p>
+                            </header>
+                            <div class="feedback">
+                                <div class="feedback-step"><strong data-editable="true">For You Page</strong><span data-editable="true">Personalized stream of videos</span></div>
+                                <div class="diagram-arrow">-&gt;</div>
+                                <div class="feedback-step"><strong data-editable="true">Signals</strong><span data-editable="true">Completion, replay, likes, comments</span></div>
+                                <div class="feedback-step"><strong data-editable="true">Interest Model</strong><span data-editable="true">High-dimensional prediction</span></div>
+                                <div class="diagram-arrow">&lt;-</div>
+                                <div class="feedback-step"><strong data-editable="true">Amplify</strong><span data-editable="true">More of what keeps attention</span></div>
+                            </div>
+                            <p class="engine-note" data-editable="true">Culture effect: rapid trend acceleration</p>
+                        </article>
+                        <article class="engine reveal d3">
+                            <header class="engine-head">
+                                <h3 data-editable="true">RED</h3>
+                                <p class="mono" data-editable="true">Intent loop</p>
+                            </header>
+                            <div class="feedback">
+                                <div class="feedback-step"><strong data-editable="true">Search Intent</strong><span data-editable="true">A question, need, or lifestyle goal</span></div>
+                                <div class="diagram-arrow">-&gt;</div>
+                                <div class="feedback-step"><strong data-editable="true">Reviews</strong><span data-editable="true">User-generated experience and advice</span></div>
+                                <div class="feedback-step"><strong data-editable="true">Visual Engine</strong><span data-editable="true">Images, tags, and collaborative filtering</span></div>
+                                <div class="diagram-arrow">&lt;-</div>
+                                <div class="feedback-step"><strong data-editable="true">Decision</strong><span data-editable="true">Save, compare, buy, return</span></div>
+                            </div>
+                            <p class="engine-note" data-editable="true">Culture effect: searchable lifestyle knowledge</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 5: AI creation -->
+            <section class="slide" aria-label="AI makes everyone a creator">
+                <div class="hairline top"></div>
+                <div class="hairline bottom"></div>
+                <div class="page-num">05 / 08</div>
+                <div class="nav-hint">Algorithm-Driven Culture</div>
+                <div class="slide-frame">
+                    <header class="topbar reveal d1">
+                        <h2 data-editable="true">Tech Key 2: AI Creation</h2>
+                        <p class="mono topbar-tag" data-editable="true">Lower barrier / more voices</p>
+                    </header>
+                    <div class="creator-layout">
+                        <div class="creator-statement reveal d2">
+                            <p class="micro" data-editable="true">Democratization of creation</p>
+                            <p class="display" data-editable="true">Everyone<br>can create.</p>
+                            <p data-editable="true">AI does not replace every creator. It reduces the time, skill, and cost needed to participate.</p>
+                        </div>
+                        <div class="creation-pipeline reveal d3">
+                            <article class="tool-column">
+                                <h3 data-editable="true">Capture</h3>
+                                <p data-editable="true">AI filters</p>
+                                <p data-editable="true">AR effects</p>
+                                <p data-editable="true">Virtual avatars</p>
+                            </article>
+                            <div class="pipeline-arrow">-&gt;</div>
+                            <article class="tool-column">
+                                <h3 data-editable="true">Produce</h3>
+                                <p data-editable="true">One-tap templates</p>
+                                <p data-editable="true">Auto-editing</p>
+                                <p data-editable="true">AIGC tools</p>
+                            </article>
+                            <div class="pipeline-arrow">-&gt;</div>
+                            <article class="tool-column">
+                                <h3 data-editable="true">Circulate</h3>
+                                <p data-editable="true">Recommendation</p>
+                                <p data-editable="true">Remix culture</p>
+                                <p data-editable="true">Global reach</p>
+                            </article>
+                        </div>
+                        <div class="creation-keywords">
+                            <span class="tag" data-editable="true">Augmented Reality</span>
+                            <span class="tag" data-editable="true">AIGC</span>
+                            <span class="tag" data-editable="true">Participation</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 6: Social commerce -->
+            <section class="slide" aria-label="From attention to purchase">
+                <div class="hairline top"></div>
+                <div class="hairline bottom"></div>
+                <div class="page-num">06 / 08</div>
+                <div class="nav-hint">Algorithm-Driven Culture</div>
+                <div class="slide-frame">
+                    <header class="topbar reveal d1">
+                        <h2 data-editable="true">Tech Key 3: Social Commerce</h2>
+                        <p class="mono topbar-tag" data-editable="true">From attention to purchase</p>
+                    </header>
+                    <div class="commerce-grid">
+                        <article class="commerce-path reveal d2">
+                            <h3 data-editable="true">TikTok: Product Finds Person</h3>
+                            <div class="path-steps">
+                                <div class="path-step"><span class="step-num">01</span><strong data-editable="true">Watch</strong><span data-editable="true">Algorithm reads an emerging interest</span></div>
+                                <div class="path-arrow">-&gt;</div>
+                                <div class="path-step"><span class="step-num">02</span><strong data-editable="true">Desire</strong><span data-editable="true">Creator content turns attention into curiosity</span></div>
+                                <div class="path-arrow">-&gt;</div>
+                                <div class="path-step"><span class="step-num">03</span><strong data-editable="true">Buy</strong><span data-editable="true">The product is already inside the feed</span></div>
+                            </div>
+                            <p class="commerce-callout" data-editable="true">"TikTok made me buy it"</p>
+                        </article>
+                        <article class="commerce-path reveal d3">
+                            <h3 data-editable="true">RED: Person Finds Product</h3>
+                            <div class="path-steps">
+                                <div class="path-step"><span class="step-num">01</span><strong data-editable="true">Search</strong><span data-editable="true">User starts with a lifestyle question</span></div>
+                                <div class="path-arrow">-&gt;</div>
+                                <div class="path-step"><span class="step-num">02</span><strong data-editable="true">Trust</strong><span data-editable="true">Reviews and KOCs reduce uncertainty</span></div>
+                                <div class="path-arrow">-&gt;</div>
+                                <div class="path-step"><span class="step-num">03</span><strong data-editable="true">Decide</strong><span data-editable="true">Community knowledge shapes purchase</span></div>
+                            </div>
+                            <p class="commerce-callout" data-editable="true">Social commerce = content + trust + infrastructure</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 7: Risks -->
+            <section class="slide" aria-label="The shadow of algorithms">
+                <div class="hairline top"></div>
+                <div class="hairline bottom"></div>
+                <div class="page-num">07 / 08</div>
+                <div class="nav-hint">Algorithm-Driven Culture</div>
+                <div class="slide-frame">
+                    <header class="topbar reveal d1">
+                        <h2 data-editable="true">The Shadow of Algorithms</h2>
+                        <p class="mono topbar-tag" data-editable="true">Critical pause / 04</p>
+                    </header>
+                    <div class="shadow-layout">
+                        <div class="shadow-title reveal d2">
+                            <p class="micro" data-editable="true">Every gravity field has a cost</p>
+                            <p class="display" data-editable="true">Power<br>needs<br>questions.</p>
+                            <p data-editable="true">The same systems that personalize culture can also narrow, intensify, and misread it.</p>
+                        </div>
+                        <div class="risk-list reveal d3">
+                            <div class="risk"><span class="risk-num">01</span><span class="risk-name" data-editable="true">Information cocoon</span><span class="risk-tag" data-editable="true">What stays unseen?</span></div>
+                            <div class="risk"><span class="risk-num">02</span><span class="risk-name" data-editable="true">Addictive design</span><span class="risk-tag" data-editable="true">Who controls attention?</span></div>
+                            <div class="risk"><span class="risk-num">03</span><span class="risk-name" data-editable="true">Data privacy</span><span class="risk-tag" data-editable="true">What is collected?</span></div>
+                            <div class="risk"><span class="risk-num">04</span><span class="risk-name" data-editable="true">Algorithmic bias</span><span class="risk-tag" data-editable="true">Who is amplified?</span></div>
+                            <div class="risk"><span class="risk-num">05</span><span class="risk-name" data-editable="true">Cross-cultural friction</span><span class="risk-tag" data-editable="true">What gets lost?</span></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 8: Conclusion -->
+            <section class="slide closing" aria-label="Conclusion">
+                <div class="hairline top"></div>
+                <div class="hairline bottom"></div>
+                <div class="page-num">08 / 08</div>
+                <div class="nav-hint">Algorithm-Driven Culture</div>
+                <div class="glitch left" aria-hidden="true">
+                    <i></i><i></i><i></i><i></i><i></i><i></i>
+                    <i></i><i></i><i></i><i></i><i></i>
+                </div>
+                <div class="closing-copy">
+                    <p class="micro reveal d1" data-editable="true">Conclusion / What kind of digital planet are we creating?</p>
+                    <h2 class="display closing-title reveal d2" data-editable="true">Culture now moves<br>through algorithms.</h2>
+                    <p class="closing-quote reveal d3" data-editable="true">Technology is not just reshaping how we socialize, but redefining the fabric of global culture. And the gravity of this change is increasingly coming from the East.</p>
+                </div>
+                <div class="closing-points reveal d4">
+                    <div><span>01 / Era</span><strong data-editable="true">Social media is becoming AIGC-native.</strong></div>
+                    <div><span>02 / Tribes</span><strong data-editable="true">Platforms organize people around shared interests.</strong></div>
+                    <div><span>03 / Power</span><strong data-editable="true">Technology reshapes global cultural behavior.</strong></div>
+                </div>
+                <div class="qr" aria-hidden="true">
+                    <b></b><b></b><b class="off"></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b>
+                    <b></b><b class="off"></b><b></b><b></b><b></b><b class="off"></b><b></b><b></b>
+                    <b class="off"></b><b></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b><b></b>
+                    <b></b><b></b><b class="off"></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b>
+                    <b></b><b class="off"></b><b></b><b></b><b></b><b class="off"></b><b></b><b></b>
+                    <b class="off"></b><b></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b><b></b>
+                    <b></b><b></b><b class="off"></b><b></b><b class="off"></b><b></b><b></b><b class="off"></b>
+                    <b></b><b class="off"></b><b></b><b></b><b></b><b class="off"></b><b></b><b></b>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Outside-stage interface stays small and does not affect slide export. -->
+    <div class="deck-progress" id="deckProgress" aria-live="polite">01 / 08</div>
+    <div class="edit-hotzone" aria-label="Show edit controls"></div>
+    <button class="edit-toggle" id="editToggle" type="button" title="Edit mode (E)">EDIT</button>
+
+    <script>
+        /* ===========================================
+           PRESENTATION CONTROLLER
+           Handles fixed-stage scaling and navigation.
+           =========================================== */
+        class SlidePresentation {
+            constructor() {
+                this.slides = [...document.querySelectorAll(".slide")];
+                this.stage = document.getElementById("deckStage");
+                this.progress = document.getElementById("deckProgress");
+                this.currentSlide = 0;
+                this.touchStartX = 0;
+                this.wheelLocked = false;
+                this.setupStageScale();
+                this.setupKeyboardNav();
+                this.setupTouchNav();
+                this.setupWheelNav();
+                const requestedSlide = Number(new URLSearchParams(window.location.search).get("slide") || 1);
+                this.showSlide(requestedSlide - 1);
+            }
+
+            setupStageScale() {
+                const scale = () => {
+                    const factor = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+                    const x = (window.innerWidth - 1920 * factor) / 2;
+                    const y = (window.innerHeight - 1080 * factor) / 2;
+                    this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+                };
+                scale();
+                window.addEventListener("resize", scale);
+            }
+
+            setupKeyboardNav() {
+                document.addEventListener("keydown", (event) => {
+                    if (event.target.getAttribute("contenteditable") === "true") {
+                        return;
+                    }
+                    if (["ArrowRight", "ArrowDown", " ", "PageDown"].includes(event.key)) {
+                        event.preventDefault();
+                        this.next();
+                    }
+                    if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+                        event.preventDefault();
+                        this.previous();
+                    }
+                    if (event.key === "Home") {
+                        this.showSlide(0);
+                    }
+                    if (event.key === "End") {
+                        this.showSlide(this.slides.length - 1);
+                    }
+                });
+            }
+
+            setupTouchNav() {
+                document.addEventListener("touchstart", (event) => {
+                    this.touchStartX = event.changedTouches[0].screenX;
+                }, { passive: true });
+                document.addEventListener("touchend", (event) => {
+                    const delta = event.changedTouches[0].screenX - this.touchStartX;
+                    if (Math.abs(delta) < 48) return;
+                    delta < 0 ? this.next() : this.previous();
+                }, { passive: true });
+            }
+
+            setupWheelNav() {
+                document.addEventListener("wheel", (event) => {
+                    if (this.wheelLocked || Math.abs(event.deltaY) < 18) return;
+                    this.wheelLocked = true;
+                    event.deltaY > 0 ? this.next() : this.previous();
+                    setTimeout(() => {
+                        this.wheelLocked = false;
+                    }, 500);
+                }, { passive: true });
+            }
+
+            showSlide(index) {
+                this.currentSlide = Math.max(0, Math.min(index, this.slides.length - 1));
+                this.slides.forEach((slide, slideIndex) => {
+                    const isCurrent = slideIndex === this.currentSlide;
+                    slide.classList.toggle("active", isCurrent);
+                    slide.classList.toggle("visible", isCurrent);
+                });
+                this.progress.textContent =
+                    `${String(this.currentSlide + 1).padStart(2, "0")} / ${String(this.slides.length).padStart(2, "0")}`;
+            }
+
+            next() {
+                this.showSlide(this.currentSlide + 1);
+            }
+
+            previous() {
+                this.showSlide(this.currentSlide - 1);
+            }
+        }
+
+        /* ===========================================
+           INLINE TEXT EDITOR
+           Press E or hover the top-left corner to edit.
+           Text autosaves locally in this browser.
+           =========================================== */
+        class InlineEditor {
+            constructor() {
+                this.storageKey = "algorithm-driven-culture-edits-v1";
+                this.isActive = false;
+                this.editables = [...document.querySelectorAll('[data-editable="true"]')];
+                this.toggle = document.getElementById("editToggle");
+                this.restore();
+                this.setup();
+            }
+
+            setup() {
+                this.toggle.addEventListener("click", () => this.toggleEditMode());
+                this.editables.forEach((element) => {
+                    element.addEventListener("input", () => this.save());
+                });
+                document.addEventListener("keydown", (event) => {
+                    if ((event.key === "e" || event.key === "E") &&
+                        event.target.getAttribute("contenteditable") !== "true") {
+                        this.toggleEditMode();
+                    }
+                    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+                        event.preventDefault();
+                        this.save();
+                    }
+                });
+            }
+
+            toggleEditMode() {
+                this.isActive = !this.isActive;
+                document.body.classList.toggle("editing", this.isActive);
+                this.toggle.classList.toggle("active", this.isActive);
+                this.toggle.textContent = this.isActive ? "DONE" : "EDIT";
+                this.editables.forEach((element) => {
+                    element.setAttribute("contenteditable", String(this.isActive));
+                });
+                if (!this.isActive) this.save();
+            }
+
+            save() {
+                const content = this.editables.map((element) => element.innerHTML);
+                localStorage.setItem(this.storageKey, JSON.stringify(content));
+            }
+
+            restore() {
+                const saved = JSON.parse(localStorage.getItem(this.storageKey) || "null");
+                if (!Array.isArray(saved)) return;
+                this.editables.forEach((element, index) => {
+                    if (saved[index] !== undefined) element.innerHTML = saved[index];
+                });
+            }
+        }
+
+        /* ===========================================
+           EDIT BUTTON HOVER BEHAVIOR
+           Uses a delayed JS hide to keep the button clickable.
+           =========================================== */
+        const presentation = new SlidePresentation();
+        const editor = new InlineEditor();
+        const hotzone = document.querySelector(".edit-hotzone");
+        const editToggle = document.getElementById("editToggle");
+        let hideTimeout = null;
+
+        hotzone.addEventListener("mouseenter", () => {
+            clearTimeout(hideTimeout);
+            editToggle.classList.add("show");
+        });
+
+        hotzone.addEventListener("mouseleave", () => {
+            hideTimeout = setTimeout(() => {
+                if (!editor.isActive) editToggle.classList.remove("show");
+            }, 400);
+        });
+
+        editToggle.addEventListener("mouseenter", () => clearTimeout(hideTimeout));
+        editToggle.addEventListener("mouseleave", () => {
+            hideTimeout = setTimeout(() => {
+                if (!editor.isActive) editToggle.classList.remove("show");
+            }, 400);
+        });
+
+        hotzone.addEventListener("click", () => editor.toggleEditMode());
+    </script>
+</body>
+</html>
