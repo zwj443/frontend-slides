@@ -1,0 +1,2594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algorithm-Driven Culture</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@500;600&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ===========================================
+           THEME TOKENS
+           =========================================== */
+        :root {
+            --stage-bg: #071331;
+            --slide-bg: #f9fbff;
+            --paper: #f9fbff;
+            --paper-blue: #eef4ff;
+            --ink: #071331;
+            --muted: #61708e;
+            --line: #cfdbed;
+            --royal: #1559ff;
+            --royal-deep: #0e3fcc;
+            --cyan: #4ee7ff;
+            --red: #ff526d;
+            --lime: #b7f04c;
+            --white: #ffffff;
+            --font-display: "Manrope", sans-serif;
+            --font-body: "DM Sans", sans-serif;
+            --font-mono: "IBM Plex Mono", monospace;
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* ===========================================
+           FIXED 16:9 STAGE: MANDATORY BASE STYLES
+           Slides are authored at 1920x1080 and scaled as a whole.
+           =========================================== */
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: var(--stage-bg, #000);
+        }
+
+        .deck-viewport {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            background: var(--stage-bg, #000);
+        }
+
+        .deck-stage {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            transform-origin: 0 0;
+            background: var(--slide-bg, #fff);
+        }
+
+        .slide {
+            position: absolute;
+            inset: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            display: block;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            background: var(--slide-bg, #fff);
+        }
+
+        .slide.active,
+        .slide.visible {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 1;
+        }
+
+        img,
+        video,
+        canvas,
+        svg {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .deck-controls {
+            position: fixed;
+            left: 50%;
+            bottom: 22px;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+
+        @media print {
+            html,
+            body {
+                width: 1920px;
+                height: auto;
+                overflow: visible;
+                background: #fff;
+            }
+
+            .deck-viewport {
+                position: static;
+                overflow: visible;
+                background: #fff;
+            }
+
+            .deck-stage {
+                position: static;
+                width: auto;
+                height: auto;
+                transform: none !important;
+                background: none;
+            }
+
+            .slide {
+                position: relative;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                pointer-events: auto !important;
+                width: 1920px;
+                height: 1080px;
+                break-after: page;
+                page-break-after: always;
+            }
+
+            .slide:last-child {
+                break-after: auto;
+                page-break-after: auto;
+            }
+
+            .deck-controls,
+            .edit-hotzone,
+            .edit-toggle {
+                display: none !important;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.2s !important;
+            }
+        }
+
+        /* ===========================================
+           SHARED SLIDE SYSTEM
+           =========================================== */
+        .slide::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 86% 10%, rgba(21, 89, 255, 0.08), transparent 280px),
+                linear-gradient(90deg, rgba(11, 42, 112, 0.045) 1px, transparent 1px),
+                linear-gradient(rgba(11, 42, 112, 0.045) 1px, transparent 1px);
+            background-size: auto, 72px 72px, 72px 72px;
+            pointer-events: none;
+        }
+
+        .blue-field {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 282px;
+            background:
+                radial-gradient(circle at 84% 40%, rgba(78, 231, 255, 0.3), transparent 260px),
+                linear-gradient(112deg, var(--royal-deep), var(--royal) 64%);
+            overflow: hidden;
+        }
+
+        .blue-field::before,
+        .blue-field::after {
+            content: "";
+            position: absolute;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            border-radius: 50%;
+        }
+
+        .blue-field::before { width: 560px; height: 560px; right: -90px; top: -250px; }
+        .blue-field::after { width: 390px; height: 390px; right: -5px; top: -164px; }
+
+        .content {
+            position: absolute;
+            inset: 0;
+            padding: 72px 104px;
+            z-index: 2;
+        }
+
+        .topline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 26px;
+        }
+
+        .kicker,
+        .slide-no,
+        .mono {
+            font-family: var(--font-mono);
+            font-size: 20px;
+            line-height: 1.25;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .kicker { color: var(--royal); font-weight: 600; }
+        .slide-no { color: #7d8ba7; }
+
+        h1,
+        h2,
+        h3 {
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-weight: 800;
+        }
+
+        h1 {
+            font-size: 132px;
+            line-height: 0.98;
+            letter-spacing: -0.035em;
+            word-spacing: 0.06em;
+        }
+
+        h2 {
+            max-width: 1340px;
+            font-size: 76px;
+            line-height: 1.04;
+            letter-spacing: -0.032em;
+            word-spacing: 0.055em;
+        }
+
+        h3 {
+            font-size: 42px;
+            line-height: 1.04;
+            letter-spacing: -0.025em;
+            word-spacing: 0.035em;
+        }
+        p { font-family: var(--font-body); }
+
+        .subtitle {
+            color: var(--muted);
+            font-family: var(--font-body);
+            font-size: 31px;
+            line-height: 1.35;
+        }
+
+        .section-title { max-width: 1240px; }
+        .blue-text { color: var(--royal); }
+        .white-text { color: var(--white); }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 11px 17px;
+            color: var(--ink);
+            background: rgba(255, 255, 255, 0.78);
+            font-family: var(--font-mono);
+            font-size: 16px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .pill::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--royal);
+        }
+
+        .footer-label {
+            position: absolute;
+            left: 104px;
+            bottom: 61px;
+            z-index: 3;
+            color: rgba(255, 255, 255, 0.82);
+            font-family: var(--font-mono);
+            font-size: 18px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .footer-big {
+            position: absolute;
+            left: 104px;
+            bottom: 100px;
+            z-index: 3;
+            color: var(--white);
+            font-family: var(--font-display);
+            font-size: 58px;
+            font-weight: 700;
+            letter-spacing: -0.022em;
+            word-spacing: 0.12em;
+            line-height: 1;
+        }
+
+        .reveal,
+        .reveal-left,
+        .reveal-scale {
+            opacity: 0;
+            transition:
+                opacity 0.52s var(--ease-out-expo),
+                transform 0.52s var(--ease-out-expo);
+        }
+
+        .reveal { transform: translateY(22px); }
+        .reveal-left { transform: translateX(-28px); }
+        .reveal-scale { transform: scale(0.94); }
+
+        .slide.visible .reveal,
+        .slide.visible .reveal-left,
+        .slide.visible .reveal-scale {
+            opacity: 1;
+            transform: translate(0, 0) scale(1);
+        }
+
+        /* The official PDF exporter activates slides directly without the
+           presentation controller's .visible class. Reveal those captures
+           immediately while preserving normal in-browser animations. */
+        .slide.active:not(.visible) .reveal,
+        .slide.active:not(.visible) .reveal-left,
+        .slide.active:not(.visible) .reveal-scale {
+            opacity: 1;
+            transform: translate(0, 0) scale(1);
+            transition: none;
+        }
+
+        .delay-1 { transition-delay: 0.08s; }
+        .delay-2 { transition-delay: 0.16s; }
+        .delay-3 { transition-delay: 0.24s; }
+        .delay-4 { transition-delay: 0.32s; }
+        .delay-5 { transition-delay: 0.4s; }
+
+        /* ===========================================
+           APP ICONS AND NETWORK GRAPHICS
+           =========================================== */
+        .app-icon {
+            display: grid;
+            place-items: center;
+            width: 118px;
+            height: 118px;
+            border-radius: 34px;
+            color: var(--white);
+            font-family: var(--font-display);
+            font-weight: 800;
+            line-height: 1;
+            text-align: center;
+            letter-spacing: -0.04em;
+            box-shadow: 0 18px 38px rgba(2, 19, 68, 0.2);
+        }
+
+        .app-icon.tiktok {
+            position: relative;
+            background: #071331;
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+        }
+
+        .app-icon.red {
+            background: #ff314d;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.06em;
+        }
+
+        .mini-icon { width: 74px; height: 74px; border-radius: 22px; }
+        .mini-icon.tiktok { font-size: 17px; }
+        .mini-icon.red { font-size: 15px; }
+
+        .node {
+            position: absolute;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--cyan);
+            box-shadow: 0 0 0 7px rgba(78, 231, 255, 0.16);
+        }
+
+        .node.red-node {
+            background: var(--red);
+            box-shadow: 0 0 0 7px rgba(255, 82, 109, 0.16);
+        }
+
+        /* ===========================================
+           SLIDE 01: TITLE / DIGITAL GRAVITY
+           =========================================== */
+        .title-slide .blue-field { height: 322px; }
+
+        .title-slide h1 {
+            position: absolute;
+            left: 104px;
+            top: 138px;
+            width: 1040px;
+            font-size: 116px;
+            line-height: 1.04;
+            letter-spacing: 0.004em;
+        }
+
+        .title-slide .subtitle {
+            position: absolute;
+            left: 112px;
+            top: 426px;
+            width: 1000px;
+            font-size: 36px;
+        }
+
+        .title-slide .presented-by {
+            position: absolute;
+            left: 112px;
+            top: 530px;
+            width: 980px;
+            color: #42516d;
+            font-family: var(--font-body);
+            font-size: 26px;
+            font-weight: 650;
+            line-height: 1.28;
+            letter-spacing: 0.01em;
+        }
+
+        .title-slide .presented-by span {
+            display: block;
+            margin: 0 0 6px;
+            color: var(--royal);
+            font-family: var(--font-mono);
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .title-slide .tag-row {
+            position: absolute;
+            left: 112px;
+            top: 650px;
+            display: flex;
+            gap: 16px;
+        }
+
+        .title-slide .topline .kicker { font-size: 21px; }
+
+        .title-slide .footer-label { bottom: 74px; }
+
+        .title-slide .footer-label { font-size: 20px; }
+
+        .title-slide .pill {
+            padding: 11px 19px;
+            color: #0e234c;
+            background: rgba(255, 255, 255, 0.68);
+            font-size: 22px;
+            font-weight: 650;
+            letter-spacing: 0.06em;
+        }
+
+        .orbit-visual {
+            position: absolute;
+            width: 740px;
+            height: 740px;
+            right: 60px;
+            top: 22px;
+        }
+
+        .orbit-ring {
+            position: absolute;
+            border: 2px solid rgba(21, 89, 255, 0.22);
+            border-radius: 50%;
+        }
+
+        .orbit-ring.r1 { width: 620px; height: 620px; left: 68px; top: 56px; }
+        .orbit-ring.r2 { width: 470px; height: 470px; left: 145px; top: 134px; border-style: dashed; }
+        .orbit-ring.r3 { width: 300px; height: 300px; left: 226px; top: 218px; }
+
+        .orbit-visual::after {
+            content: "";
+            position: absolute;
+            width: 270px;
+            height: 270px;
+            left: 244px;
+            top: 234px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(21, 89, 255, 0.26), rgba(21, 89, 255, 0));
+        }
+
+        .orbit-visual .tiktok { position: absolute; left: 208px; top: 188px; z-index: 3; }
+        .orbit-visual .red { position: absolute; left: 404px; top: 386px; z-index: 3; }
+        .orbit-visual .node.n1 { left: 124px; top: 180px; }
+        .orbit-visual .node.n2 { left: 562px; top: 142px; }
+        .orbit-visual .node.n3 { left: 638px; top: 402px; }
+        .orbit-visual .node.n4 { left: 186px; top: 578px; }
+        .orbit-visual .node.n5 { left: 96px; top: 392px; }
+        .orbit-visual .node.n6 { left: 503px; top: 604px; }
+
+        .gravity-label {
+            position: absolute;
+            right: 112px;
+            bottom: 94px;
+            z-index: 4;
+            max-width: 630px;
+            color: var(--white);
+            font-family: var(--font-display);
+            font-size: 48px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            word-spacing: 0.12em;
+            line-height: 1.02;
+            text-align: right;
+        }
+
+        /* ===========================================
+           SLIDE 02: ROADMAP
+           =========================================== */
+        .roadmap-title {
+            position: absolute;
+            left: 104px;
+            top: 154px;
+        }
+
+        .roadmap-title .subtitle {
+            width: 1040px;
+            margin-top: 40px;
+            font-size: 24pt;
+            line-height: 1.2;
+        }
+
+        .roadmap-slide .topline .kicker,
+        .roadmap-slide .topline .slide-no {
+            font-size: 21px;
+        }
+
+        .roadmap-track {
+            position: absolute;
+            left: 104px;
+            right: 104px;
+            top: 430px;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+        }
+
+        .roadmap-track::before {
+            content: "";
+            position: absolute;
+            left: 42px;
+            right: 42px;
+            top: 36px;
+            height: 2px;
+            background: linear-gradient(90deg, rgba(21, 89, 255, 0.28), var(--royal), rgba(21, 89, 255, 0.28));
+        }
+
+        .road-card {
+            position: relative;
+            min-height: 178px;
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 66px 18px 18px;
+            background: rgba(255, 255, 255, 0.72);
+            box-shadow: 0 10px 30px rgba(20, 58, 132, 0.055);
+        }
+
+        .road-card::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 22px;
+            width: 20px;
+            height: 20px;
+            border: 7px solid rgba(255, 255, 255, 0.92);
+            border-radius: 50%;
+            background: var(--royal);
+            box-shadow: 0 0 0 2px var(--royal);
+            transform: translateX(-50%);
+        }
+
+        .road-card .road-no {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--royal);
+            font-family: var(--font-mono);
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-align: center;
+        }
+
+        .road-card strong {
+            display: block;
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-size: 27px;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            line-height: 1.06;
+            text-align: center;
+        }
+
+        .road-card small {
+            display: block;
+            margin-top: 12px;
+            color: var(--muted);
+            font-family: var(--font-body);
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.22;
+            text-align: center;
+        }
+
+        .roadmap-footer {
+            position: absolute;
+            left: 104px;
+            right: 104px;
+            bottom: 100px;
+            z-index: 4;
+            color: var(--white);
+            font-family: var(--font-display);
+            font-size: 58px;
+            font-weight: 800;
+            letter-spacing: -0.018em;
+            word-spacing: 0.12em;
+            line-height: 1.06;
+            text-align: center;
+        }
+
+        /* ===========================================
+           SLIDE 03: NEW DIGITAL GRAVITY FIELD
+           =========================================== */
+        .gravity-copy {
+            position: absolute;
+            left: 104px;
+            top: 210px;
+            width: 890px;
+        }
+
+        .gravity-copy .subtitle {
+            margin-top: 40px;
+            max-width: 820px;
+            font-size: 24pt;
+            line-height: 1.18;
+        }
+
+        .opening-slide .topline .kicker,
+        .opening-slide .topline .slide-no {
+            font-size: 21px;
+        }
+
+        .gravity-bridge {
+            position: absolute;
+            left: 104px;
+            top: 470px;
+            width: 840px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+
+        .gravity-card {
+            position: relative;
+            display: grid;
+            grid-template-columns: 68px 245px 1fr;
+            align-items: center;
+            min-height: 72px;
+            border: 1px solid rgba(191, 207, 235, 0.78);
+            border-radius: 999px;
+            padding: 12px 24px 12px 18px;
+            background: rgba(255, 255, 255, 0.68);
+            box-shadow: 0 8px 24px rgba(20, 58, 132, 0.045);
+        }
+
+        .gravity-card span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            color: var(--royal);
+            background: rgba(21, 89, 255, 0.08);
+            font-family: var(--font-mono);
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+        }
+
+        .gravity-card strong {
+            display: block;
+            margin-bottom: 7px;
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.015em;
+            line-height: 1.08;
+        }
+
+        .gravity-card p {
+            color: var(--muted);
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .world-orbit {
+            position: absolute;
+            right: 124px;
+            top: 146px;
+            width: 710px;
+            height: 602px;
+        }
+
+        .world-orbit .globe {
+            position: absolute;
+            left: 183px;
+            top: 118px;
+            width: 360px;
+            height: 360px;
+            border-radius: 50%;
+            border: 2px solid rgba(21, 89, 255, 0.24);
+            background:
+                linear-gradient(rgba(21, 89, 255, 0.12) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(21, 89, 255, 0.12) 1px, transparent 1px),
+                radial-gradient(circle, rgba(21, 89, 255, 0.12), rgba(21, 89, 255, 0.02));
+            background-size: 42px 42px;
+        }
+
+        .world-orbit .globe::before,
+        .world-orbit .globe::after {
+            content: "";
+            position: absolute;
+            border: 1px solid rgba(21, 89, 255, 0.28);
+            border-radius: 50%;
+        }
+
+        .world-orbit .globe::before { inset: 46px -82px; }
+        .world-orbit .globe::after { inset: -76px 48px; }
+
+        .world-orbit .path {
+            position: absolute;
+            left: 36px;
+            top: 37px;
+            width: 640px;
+            height: 520px;
+            border: 2px dashed rgba(21, 89, 255, 0.22);
+            border-radius: 50%;
+            transform: rotate(-14deg);
+        }
+
+        .world-orbit .tiktok { position: absolute; left: 109px; top: 86px; }
+        .world-orbit .red { position: absolute; right: 108px; bottom: 126px; }
+        .world-orbit .node.n1 { left: 130px; top: 448px; }
+        .world-orbit .node.n2 { left: 560px; top: 101px; }
+        .world-orbit .node.n3 { left: 596px; top: 346px; }
+        .world-orbit .node.n4 { left: 298px; top: 30px; }
+
+        .term-row {
+            position: absolute;
+            left: 104px;
+            right: 104px;
+            bottom: 92px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 14px;
+            z-index: 4;
+        }
+
+        .term-row span {
+            color: rgba(255, 255, 255, 0.92);
+            font-family: var(--font-display);
+            font-size: 39px;
+            font-weight: 680;
+            letter-spacing: -0.018em;
+            word-spacing: 0.12em;
+        }
+
+        .term-row i { color: rgba(255, 255, 255, 0.56); font-style: normal; font-size: 23px; }
+
+        /* ===========================================
+           SLIDE 04: ALGORITHMIC TWINS
+           =========================================== */
+        .twins-grid {
+            position: absolute;
+            left: 132px;
+            top: 244px;
+            width: 1664px;
+            height: 540px;
+            display: grid;
+            grid-template-columns: 1fr 92px 1fr;
+            gap: 24px;
+        }
+
+        .twins-slide .section-title {
+            left: 132px;
+            right: auto;
+        }
+
+        .twin-card {
+            position: relative;
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            background: rgba(255, 255, 255, 0.94);
+            padding: 32px 36px;
+            overflow: hidden;
+            box-shadow: 0 18px 54px rgba(20, 58, 132, 0.08);
+        }
+
+        .twin-card::after {
+            content: "";
+            position: absolute;
+            right: -98px;
+            bottom: -130px;
+            width: 290px;
+            height: 290px;
+            border-radius: 50%;
+            background: rgba(21, 89, 255, 0.07);
+        }
+
+        .twin-head {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+            min-height: 84px;
+            margin-bottom: 23px;
+        }
+
+        .twin-head .app-name {
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-size: 52px;
+            font-weight: 800;
+            letter-spacing: -0.06em;
+        }
+
+        .twin-head .app-mode {
+            color: var(--muted);
+            font-family: var(--font-mono);
+            font-size: 22px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .vs {
+            align-self: center;
+            color: var(--royal);
+            font-family: var(--font-display);
+            font-size: 46px;
+            font-weight: 800;
+            letter-spacing: -0.07em;
+            text-align: center;
+        }
+
+        .twin-list {
+            display: grid;
+            gap: 9px;
+        }
+
+        .twin-item {
+            display: grid;
+            grid-template-columns: 210px 1fr;
+            gap: 22px;
+            border-top: 1px solid var(--line);
+            min-height: 64px;
+            padding-top: 12px;
+            align-items: start;
+        }
+
+        .twin-item .label {
+            color: var(--royal);
+            font-family: var(--font-mono);
+            font-size: 21px;
+            letter-spacing: 0.07em;
+            line-height: 1.14;
+            text-transform: uppercase;
+        }
+
+        .twin-item .value {
+            color: var(--ink);
+            font-family: var(--font-body);
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.16;
+        }
+
+        .twins-footer {
+            position: absolute;
+            left: 132px;
+            right: 132px;
+            bottom: 94px;
+            z-index: 3;
+            color: var(--white);
+            font-family: var(--font-display);
+            font-size: 44px;
+            font-weight: 700;
+            letter-spacing: -0.018em;
+            word-spacing: 0.12em;
+            line-height: 1.08;
+            text-align: center;
+        }
+
+        /* ===========================================
+           SLIDE 05: RECOMMENDATION ENGINES
+           =========================================== */
+        .engine-grid {
+            position: absolute;
+            left: 104px;
+            top: 250px;
+            width: 1712px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        .engine-slide h2 {
+            max-width: 1712px;
+            font-size: 64px;
+        }
+
+        .engine-panel {
+            position: relative;
+            height: 524px;
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            background: rgba(255, 255, 255, 0.94);
+            padding: 31px 34px;
+            box-shadow: 0 16px 50px rgba(20, 58, 132, 0.08);
+            overflow: hidden;
+        }
+
+        .engine-panel h3 {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            font-size: 43px;
+        }
+
+        .engine-panel h3 span {
+            color: var(--royal);
+            font-family: var(--font-mono);
+            font-size: 22px;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+        }
+
+        .loop {
+            position: absolute;
+            left: 35px;
+            bottom: 32px;
+            width: 710px;
+            height: 395px;
+        }
+
+        .loop-ring {
+            position: absolute;
+            left: 154px;
+            top: 44px;
+            width: 360px;
+            height: 280px;
+            border: 4px dashed rgba(21, 89, 255, 0.42);
+            border-radius: 50%;
+        }
+
+        .loop-center {
+            position: absolute;
+            left: 266px;
+            top: 137px;
+            width: 140px;
+            height: 96px;
+            display: grid;
+            place-items: center;
+            border-radius: 22px;
+            color: var(--white);
+            background: var(--royal);
+            font-family: var(--font-display);
+            font-size: 31px;
+            font-weight: 800;
+            line-height: 0.94;
+            letter-spacing: -0.055em;
+            text-align: center;
+            box-shadow: 0 18px 34px rgba(21, 89, 255, 0.22);
+        }
+
+        .loop-chip {
+            position: absolute;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 12px 18px;
+            color: var(--ink);
+            background: var(--paper);
+            font-family: var(--font-mono);
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0.045em;
+            line-height: 1;
+            text-transform: uppercase;
+        }
+
+        .loop-chip.c1 { left: 48px; top: 74px; }
+        .loop-chip.c2 { right: 48px; top: 76px; }
+        .loop-chip.c3 { left: 70px; bottom: 78px; }
+        .loop-chip.c4 { right: 58px; bottom: 76px; }
+
+        .loop-node {
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+        }
+
+        .loop-node.n1 { left: 194px; top: 116px; }
+        .loop-node.n2 { right: 214px; top: 108px; }
+        .loop-node.n3 { left: 216px; bottom: 118px; }
+        .loop-node.n4 { right: 190px; bottom: 124px; }
+
+        .engine-panel.tiktok-engine {
+            background:
+                radial-gradient(circle at 50% 61%, rgba(45, 238, 255, 0.1), transparent 210px),
+                rgba(255, 255, 255, 0.95);
+        }
+
+        .tiktok-engine h3 span { color: #00a9c2; }
+
+        .tiktok-engine .loop-ring {
+            border-color: rgba(0, 218, 238, 0.64);
+            box-shadow:
+                0 0 0 18px rgba(0, 218, 238, 0.045),
+                0 0 46px rgba(0, 218, 238, 0.18);
+        }
+
+        .tiktok-engine .loop-center {
+            background: linear-gradient(135deg, #071331 0%, #0b2754 64%, #004c61 100%);
+            box-shadow:
+                -7px 5px 0 rgba(255, 63, 114, 0.72),
+                7px -5px 0 rgba(0, 238, 255, 0.68),
+                0 20px 38px rgba(7, 19, 49, 0.22),
+                0 0 0 14px rgba(0, 238, 255, 0.08);
+        }
+
+        .tiktok-engine .loop-chip {
+            border-color: rgba(0, 174, 199, 0.34);
+            background: rgba(239, 253, 255, 0.92);
+        }
+
+        .tiktok-engine .loop-node {
+            background: #00d9ed;
+            box-shadow: 0 0 0 7px rgba(0, 217, 237, 0.14), 0 0 19px rgba(0, 217, 237, 0.36);
+        }
+
+        .tiktok-engine .loop-node.n2,
+        .tiktok-engine .loop-node.n4 {
+            background: #ff4d79;
+            box-shadow: 0 0 0 7px rgba(255, 77, 121, 0.13), 0 0 19px rgba(255, 77, 121, 0.3);
+        }
+
+        .engine-panel.red-engine {
+            background:
+                radial-gradient(circle at 50% 61%, rgba(255, 82, 109, 0.105), transparent 215px),
+                rgba(255, 255, 255, 0.96);
+        }
+
+        .red-engine h3 span { color: #ff526d; }
+
+        .red-engine .loop-ring {
+            border-color: rgba(255, 82, 109, 0.56);
+            box-shadow:
+                0 0 0 18px rgba(255, 82, 109, 0.045),
+                0 0 46px rgba(255, 82, 109, 0.18);
+        }
+
+        .red-engine .loop-center {
+            border: 2px solid rgba(255, 255, 255, 0.62);
+            background: linear-gradient(135deg, #ff314d 0%, #ff526d 60%, #ff7b8f 100%);
+            box-shadow:
+                0 20px 38px rgba(255, 49, 77, 0.22),
+                0 0 0 13px rgba(255, 82, 109, 0.10),
+                0 0 40px rgba(255, 82, 109, 0.18);
+        }
+
+        .red-engine .loop-chip {
+            border-color: rgba(255, 82, 109, 0.3);
+            background: rgba(255, 247, 248, 0.96);
+        }
+
+        .red-engine .loop-node {
+            background: #ff526d;
+            box-shadow: 0 0 0 7px rgba(255, 82, 109, 0.13), 0 0 18px rgba(255, 82, 109, 0.28);
+        }
+
+        .red-engine .loop-node.n2,
+        .red-engine .loop-node.n4 {
+            background: #ff9cad;
+            box-shadow: 0 0 0 7px rgba(255, 156, 173, 0.17), 0 0 18px rgba(255, 156, 173, 0.3);
+        }
+
+        .engine-footer {
+            position: absolute;
+            left: 104px;
+            bottom: 62px;
+            z-index: 4;
+            color: var(--white);
+            font-family: var(--font-display);
+            font-size: 55px;
+            font-weight: 700;
+            letter-spacing: -0.018em;
+            word-spacing: 0.12em;
+        }
+
+        .engine-footer small {
+            display: block;
+            margin-bottom: 10px;
+            color: rgba(255, 255, 255, 0.75);
+            font-family: var(--font-mono);
+            font-size: 16px;
+            letter-spacing: 0.11em;
+            text-transform: uppercase;
+        }
+
+        /* ===========================================
+           SLIDE 06: AI CREATION PIPELINE
+           =========================================== */
+        .creator-copy {
+            position: absolute;
+            left: 104px;
+            top: 252px;
+            width: 670px;
+        }
+
+        .creator-copy .subtitle {
+            margin-top: 31px;
+            width: 630px;
+        }
+
+        .creator-pipeline {
+            position: absolute;
+            right: 104px;
+            top: 230px;
+            width: 962px;
+            height: 550px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 19px;
+        }
+
+        .tool-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            padding: 24px 25px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 14px 44px rgba(20, 58, 132, 0.07);
+            overflow: hidden;
+        }
+
+        .tool-card .tool-image {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            width: 100%;
+            height: 138px;
+            object-fit: cover;
+            object-position: center;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .tool-card .tool-no {
+            position: absolute;
+            right: 16px;
+            bottom: 12px;
+            z-index: 3;
+            width: 41px;
+            padding: 0;
+            color: var(--royal);
+            background: transparent;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .tool-card::after {
+            content: "";
+            position: absolute;
+            right: -20px;
+            bottom: -22px;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: rgba(21, 89, 255, 0.07);
+        }
+
+        .tool-card .tool-no {
+            color: var(--royal);
+            font-family: var(--font-mono);
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+        }
+
+        .tool-card .tool-name {
+            position: absolute;
+            left: 25px;
+            bottom: 24px;
+            z-index: 2;
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-size: 39px;
+            font-weight: 700;
+            letter-spacing: -0.06em;
+            line-height: 0.98;
+        }
+
+        .creator-footer {
+            position: absolute;
+            left: 104px;
+            bottom: 74px;
+            z-index: 4;
+            display: flex;
+            align-items: center;
+            gap: 28px;
+        }
+
+        .creator-footer span {
+            color: var(--white);
+            font-family: var(--font-display);
+            font-size: 47px;
+            font-weight: 700;
+            letter-spacing: -0.018em;
+            word-spacing: 0.14em;
+        }
+
+        .creator-footer i { color: rgba(255, 255, 255, 0.48); font-style: normal; }
+
+        /* ===========================================
+           SLIDE 07: SOCIAL COMMERCE LANES
+           =========================================== */
+        .commerce-lanes {
+            position: absolute;
+            left: 104px;
+            top: 250px;
+            width: 1712px;
+            display: grid;
+            gap: 27px;
+        }
+
+        .commerce-lane {
+            position: relative;
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            align-items: center;
+            height: 224px;
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 15px 48px rgba(20, 58, 132, 0.07);
+            overflow: hidden;
+        }
+
+        .lane-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 13px;
+            height: 100%;
+            border-right: 1px solid var(--line);
+            background: var(--paper-blue);
+        }
+
+        .lane-brand strong {
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-size: 29px;
+            letter-spacing: -0.05em;
+        }
+
+        .lane-flow {
+            display: grid;
+            grid-template-columns: 1fr 48px 1fr 48px 1fr;
+            align-items: center;
+            padding: 0 40px;
+        }
+
+        .lane-step span {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--royal);
+            font-family: var(--font-mono);
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .lane-step strong {
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-size: 31px;
+            letter-spacing: -0.018em;
+            word-spacing: 0.12em;
+            line-height: 1;
+        }
+
+        .flow-arrow {
+            color: var(--royal);
+            font-family: var(--font-display);
+            font-size: 44px;
+            font-weight: 800;
+            text-align: center;
+        }
+
+        .commerce-footer {
+            position: absolute;
+            left: 104px;
+            right: 104px;
+            bottom: 75px;
+            z-index: 4;
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+        }
+
+        .commerce-footer .footer-big {
+            position: static;
+        }
+
+        .commerce-footer .commerce-tags {
+            display: flex;
+            gap: 15px;
+        }
+
+        .commerce-footer .commerce-tags span {
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            border-radius: 999px;
+            padding: 11px 16px;
+            color: var(--white);
+            font-family: var(--font-mono);
+            font-size: 15px;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }
+
+        /* ===========================================
+           SLIDE 08: ETHICS
+           =========================================== */
+        .ethics-copy {
+            position: absolute;
+            left: 104px;
+            top: 244px;
+            width: 720px;
+        }
+
+        .ethics-copy .subtitle {
+            margin-top: 32px;
+            width: 650px;
+        }
+
+        .ethics-frame {
+            width: 650px;
+            margin-top: 29px;
+            border-left: 3px solid var(--royal);
+            padding-left: 18px;
+            color: #42516d;
+            font-family: var(--font-body);
+            font-size: 23px;
+            font-weight: 700;
+            line-height: 1.36;
+        }
+
+        .ethics-orbit {
+            position: absolute;
+            right: 164px;
+            top: 190px;
+            width: 710px;
+            height: 590px;
+        }
+
+        .ethics-center {
+            position: absolute;
+            left: 231px;
+            top: 163px;
+            width: 254px;
+            height: 254px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            color: var(--white);
+            background: var(--royal);
+            font-family: var(--font-display);
+            font-size: 42px;
+            font-weight: 800;
+            letter-spacing: -0.06em;
+            line-height: 0.95;
+            text-align: center;
+            box-shadow: 0 28px 60px rgba(21, 89, 255, 0.25);
+        }
+
+        .ethics-center small {
+            display: block;
+            margin-top: 13px;
+            color: rgba(255, 255, 255, 0.74);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            line-height: 1.25;
+            text-transform: uppercase;
+        }
+
+        .ethics-orbit::before,
+        .ethics-orbit::after {
+            content: "";
+            position: absolute;
+            border: 2px dashed rgba(21, 89, 255, 0.24);
+            border-radius: 50%;
+        }
+
+        .ethics-orbit::before { inset: 48px 69px; }
+        .ethics-orbit::after { inset: 1px 16px; }
+
+        .risk-chip {
+            position: absolute;
+            width: 246px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 14px 16px 13px;
+            color: var(--ink);
+            background: var(--white);
+            box-shadow: 0 12px 34px rgba(20, 58, 132, 0.09);
+        }
+
+        .risk-chip strong {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--ink);
+            font-family: var(--font-mono);
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            line-height: 1.15;
+            text-transform: uppercase;
+        }
+
+        .risk-chip small {
+            display: block;
+            color: var(--muted);
+            font-family: var(--font-body);
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.22;
+        }
+
+        .risk-chip.r1 { left: -21px; top: 48px; }
+        .risk-chip.r2 { right: -38px; top: 46px; }
+        .risk-chip.r3 { left: -48px; bottom: 59px; }
+        .risk-chip.r4 { right: -43px; bottom: 61px; }
+
+        .ethics-footer {
+            position: absolute;
+            left: 104px;
+            bottom: 75px;
+            z-index: 4;
+            width: 1080px;
+            color: var(--white);
+            font-family: var(--font-display);
+            font-size: 47px;
+            font-weight: 700;
+            letter-spacing: -0.018em;
+            word-spacing: 0.12em;
+            line-height: 1.04;
+        }
+
+        /* ===========================================
+           SLIDE 09: IMPROVE
+           Constructive solution layout for healthier recommendation design.
+           =========================================== */
+        .improve-intro {
+            position: absolute;
+            left: 104px;
+            top: 186px;
+            width: 720px;
+        }
+
+        .improve-intro .subtitle {
+            margin-top: 30px;
+            width: 650px;
+            font-size: 28px;
+            line-height: 1.22;
+        }
+
+        .improve-grid {
+            position: absolute;
+            right: 104px;
+            top: 326px;
+            display: grid;
+            width: 980px;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+        }
+
+        .solution-card {
+            position: relative;
+            height: 422px;
+            border: 1px solid var(--line);
+            border-radius: 30px;
+            padding: 26px 30px 26px;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at 84% 12%, rgba(117, 231, 255, 0.22), transparent 28%),
+                rgba(255, 255, 255, 0.95);
+            box-shadow: 0 20px 54px rgba(20, 58, 132, 0.10);
+        }
+
+        .solution-card::after {
+            content: "";
+            position: absolute;
+            right: -90px;
+            bottom: -110px;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: rgba(21, 89, 255, 0.08);
+        }
+
+        .solution-top {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            height: 112px;
+            margin-bottom: 18px;
+        }
+
+        .solution-top h3 {
+            margin: 0;
+            color: var(--ink);
+            font-family: var(--font-display);
+            font-size: 34px;
+            font-weight: 800;
+            letter-spacing: -0.035em;
+            line-height: 1.04;
+        }
+
+        .solution-badge {
+            flex: 0 0 auto;
+            border: 1px solid rgba(21, 89, 255, 0.26);
+            border-radius: 999px;
+            padding: 8px 12px;
+            color: var(--royal);
+            background: rgba(21, 89, 255, 0.06);
+            font-family: var(--font-mono);
+            font-size: 20px;
+            line-height: 1;
+            font-weight: 700;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }
+
+        .solution-visual {
+            position: relative;
+            height: 102px;
+            margin-bottom: 22px;
+        }
+
+        .time-ring {
+            position: absolute;
+            left: 0;
+            top: 0;
+            display: grid;
+            width: 92px;
+            height: 92px;
+            place-items: center;
+            border-radius: 50%;
+            color: var(--royal);
+            background:
+                radial-gradient(circle at center, var(--white) 0 52%, transparent 53%),
+                conic-gradient(var(--royal) 0 68%, rgba(21, 89, 255, 0.14) 68% 100%);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            box-shadow: 0 14px 34px rgba(21, 89, 255, 0.15);
+        }
+
+        .shield-icon {
+            position: absolute;
+            left: 122px;
+            top: 8px;
+            width: 76px;
+            height: 86px;
+            border: 3px solid var(--royal);
+            border-radius: 28px 28px 38px 38px;
+            background: rgba(21, 89, 255, 0.06);
+        }
+
+        .shield-icon::before {
+            content: "";
+            position: absolute;
+            left: 19px;
+            top: 20px;
+            width: 32px;
+            height: 17px;
+            border-left: 4px solid var(--royal);
+            border-bottom: 4px solid var(--royal);
+            transform: rotate(-45deg);
+        }
+
+        .slider-stack {
+            position: absolute;
+            right: 0;
+            top: 8px;
+            display: grid;
+            width: 170px;
+            gap: 15px;
+        }
+
+        .slider-stack i {
+            position: relative;
+            display: block;
+            height: 7px;
+            border-radius: 999px;
+            background: rgba(21, 89, 255, 0.14);
+        }
+
+        .slider-stack i::after {
+            content: "";
+            position: absolute;
+            top: -7px;
+            width: 21px;
+            height: 21px;
+            border: 3px solid var(--royal);
+            border-radius: 50%;
+            background: var(--white);
+        }
+
+        .slider-stack i:nth-child(1)::after { left: 38px; }
+        .slider-stack i:nth-child(2)::after { left: 104px; }
+        .slider-stack i:nth-child(3)::after { left: 72px; }
+
+        .rec-flow {
+            position: absolute;
+            inset: 8px 0 0;
+            display: grid;
+            grid-template-columns: 1fr 42px 1fr 42px 1fr;
+            align-items: center;
+        }
+
+        .rec-node {
+            display: grid;
+            min-height: 70px;
+            place-items: center;
+            border: 1px solid rgba(21, 89, 255, 0.30);
+            border-radius: 19px;
+            color: var(--ink);
+            background: var(--white);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            line-height: 1.18;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .rec-arrow {
+            color: var(--royal);
+            font-family: var(--font-mono);
+            font-size: 25px;
+            text-align: center;
+        }
+
+        .solution-list {
+            position: relative;
+            z-index: 2;
+            display: grid;
+            gap: 16px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .solution-list li {
+            border-left: 3px solid rgba(21, 89, 255, 0.34);
+            padding-left: 13px;
+            color: #344563;
+            font-family: var(--font-body);
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1.18;
+        }
+
+        .data-note {
+            position: absolute;
+            left: 104px;
+            top: 528px;
+            width: 690px;
+            height: 220px;
+            border: 1px solid rgba(21, 89, 255, 0.22);
+            border-radius: 24px;
+            padding: 24px 26px;
+            color: var(--ink);
+            background: rgba(255, 255, 255, 0.78);
+            box-shadow: 0 12px 30px rgba(20, 58, 132, 0.055);
+        }
+
+        .data-note strong {
+            display: block;
+            margin-bottom: 18px;
+            color: var(--royal);
+            font-family: var(--font-mono);
+            font-size: 20px;
+            line-height: 1;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .data-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .metric {
+            display: grid;
+            gap: 8px;
+        }
+
+        .metric b {
+            color: var(--royal);
+            font-family: var(--font-display);
+            font-size: 58px;
+            font-weight: 850;
+            letter-spacing: -0.04em;
+            line-height: 0.95;
+        }
+
+        .metric span {
+            color: #344563;
+            font-family: var(--font-body);
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1.18;
+        }
+
+        .improve-footer {
+            position: absolute;
+            left: 160px;
+            right: 160px;
+            bottom: 104px;
+            z-index: 4;
+            color: var(--white);
+            font-family: var(--font-display);
+            font-size: 56px;
+            font-weight: 850;
+            letter-spacing: -0.025em;
+            line-height: 1.02;
+            text-align: center;
+        }
+
+        /* ===========================================
+           SLIDE 10: CONCLUSION
+           =========================================== */
+        .closing-copy {
+            position: absolute;
+            left: 104px;
+            top: 205px;
+            width: 930px;
+        }
+
+        .closing-copy h2 {
+            font-size: 90px;
+            line-height: 1.06;
+            letter-spacing: -0.035em;
+        }
+
+        .conclusion-list {
+            position: absolute;
+            right: 112px;
+            top: 202px;
+            width: 690px;
+            display: grid;
+            gap: 17px;
+        }
+
+        .conclusion-item {
+            display: grid;
+            grid-template-columns: 68px 1fr;
+            align-items: center;
+            gap: 19px;
+            min-height: 118px;
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            padding: 18px 22px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 14px 42px rgba(20, 58, 132, 0.07);
+        }
+
+        .conclusion-item span {
+            color: var(--royal);
+            font-family: var(--font-mono);
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+        }
+
+        .conclusion-item strong {
+            color: var(--ink);
+            font-family: var(--font-body);
+            font-size: 25px;
+            line-height: 1.24;
+        }
+
+        .quote {
+            position: absolute;
+            left: 104px;
+            top: 576px;
+            width: 870px;
+            color: var(--royal);
+            font-family: var(--font-display);
+            font-size: 42px;
+            font-weight: 700;
+            letter-spacing: -0.018em;
+            word-spacing: 0.12em;
+            line-height: 1.05;
+        }
+
+        .closing-signoff {
+            position: absolute;
+            left: 104px;
+            right: 104px;
+            bottom: 62px;
+            z-index: 4;
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+        }
+
+        .closing-signoff .closing-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-family: var(--font-mono);
+            font-size: 16px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .thank-you {
+            color: var(--white);
+            font-family: var(--font-display);
+            font-size: 64px;
+            font-weight: 800;
+            letter-spacing: -0.022em;
+            word-spacing: 0.1em;
+        }
+
+        /* ===========================================
+           DECK CONTROLS AND INLINE EDITING
+           =========================================== */
+        .deck-controls {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 999px;
+            padding: 9px 14px;
+            background: rgba(7, 19, 49, 0.84);
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(12px);
+        }
+
+        .deck-controls button,
+        .edit-toggle {
+            border: 0;
+            color: var(--white);
+            background: transparent;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 15px;
+            letter-spacing: 0.08em;
+        }
+
+        .deck-controls button { padding: 3px 6px; }
+
+        #counter {
+            min-width: 62px;
+            color: rgba(255, 255, 255, 0.82);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            letter-spacing: 0.08em;
+            text-align: center;
+        }
+
+        .edit-hotzone {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 10000;
+            width: 80px;
+            height: 80px;
+            cursor: pointer;
+        }
+
+        .edit-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 10001;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            border-radius: 999px;
+            padding: 10px 14px;
+            opacity: 0;
+            pointer-events: none;
+            background: rgba(7, 19, 49, 0.9);
+            transition: opacity 0.3s ease;
+        }
+
+        .edit-toggle.show,
+        .edit-toggle.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        body.editing [data-editable] {
+            outline: 2px dashed rgba(21, 89, 255, 0.56);
+            outline-offset: 4px;
+            cursor: text;
+        }
+
+        body.qa-mode .deck-controls,
+        body.qa-mode .edit-hotzone,
+        body.qa-mode .edit-toggle {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="deck-viewport">
+        <main class="deck-stage" id="deckStage" aria-label="Algorithm-Driven Culture slide deck">
+            <!-- ===========================================
+                 SLIDE 01: TITLE
+                 Speaker notes: Introduce the main idea: TikTok and RedNote are not simply apps.
+                 They act like digital gravity fields, pulling users, creators, and brands into
+                 new cultural orbits. Explain that the presentation focuses on the technology
+                 behind that attraction and the global behavior it creates.
+                 =========================================== -->
+            <section class="slide title-slide active" aria-label="Title slide">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">Global Tech + Culture</span>
+                        <span class="slide-no">01 / 10</span>
+                    </div>
+                    <h1 class="reveal-left delay-1" data-editable>Algorithm-Driven<br><span class="blue-text">Culture</span></h1>
+                    <p class="subtitle reveal delay-2" data-editable>How TikTok and RedNote reshape global social media</p>
+                    <p class="presented-by reveal delay-3" data-editable><span>Presented by</span>Du Yu / Han Yiran / Liu Ruoshui / Lin Xiangwen / Zhang Wenjing</p>
+                    <div class="tag-row reveal delay-3">
+                        <span class="pill">Platforms</span>
+                        <span class="pill">AI</span>
+                        <span class="pill">Globalization</span>
+                    </div>
+                    <div class="orbit-visual reveal-scale delay-2" aria-label="TikTok and RedNote represented as digital gravity fields">
+                        <div class="orbit-ring r1"></div>
+                        <div class="orbit-ring r2"></div>
+                        <div class="orbit-ring r3"></div>
+                        <div class="app-icon tiktok">TikTok</div>
+                        <div class="app-icon red">RedNote</div>
+                        <span class="node n1"></span>
+                        <span class="node red-node n2"></span>
+                        <span class="node n3"></span>
+                        <span class="node red-node n4"></span>
+                        <span class="node n5"></span>
+                        <span class="node red-node n6"></span>
+                    </div>
+                    <span class="footer-label reveal delay-4">A five-minute exploration</span>
+                    <div class="gravity-label reveal delay-4" data-editable>Two apps.<br>New cultural orbits.</div>
+                </div>
+            </section>
+
+            <!-- ===========================================
+                 SLIDE 02: ROADMAP
+                 Speaker notes: Preview the talk in five stops. First, introduce the idea of
+                 digital gravity. Second, compare TikTok and RedNote as algorithmic twins. Third,
+                 explain the three technology keys: recommendation, creation, and commerce.
+                 Fourth, consider algorithmic risks. Finally, turn toward healthier design
+                 before returning to the future of global culture.
+                 =========================================== -->
+            <section class="slide roadmap-slide" aria-label="Roadmap">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">Presentation Roadmap</span>
+                        <span class="slide-no">02 / 10</span>
+                    </div>
+                    <div class="roadmap-title">
+                        <h2 class="section-title reveal-left delay-1" data-editable>Roadmap</h2>
+                        <p class="subtitle reveal delay-2" data-editable>Five stops from digital attraction to responsible design.</p>
+                    </div>
+                    <div class="roadmap-track" aria-label="Five roadmap sections">
+                        <article class="road-card reveal delay-1">
+                            <span class="road-no">01</span>
+                            <strong data-editable>Digital<br>Gravity</strong>
+                            <small data-editable>Why users enter the orbit</small>
+                        </article>
+                        <article class="road-card reveal delay-2">
+                            <span class="road-no">02</span>
+                            <strong data-editable>Algorithmic<br>Twins</strong>
+                            <small data-editable>TikTok versus RedNote</small>
+                        </article>
+                        <article class="road-card reveal delay-3">
+                            <span class="road-no">03</span>
+                            <strong data-editable>Three<br>Tech Keys</strong>
+                            <small data-editable>Recommend / Create / Convert</small>
+                        </article>
+                        <article class="road-card reveal delay-4">
+                            <span class="road-no">04</span>
+                            <strong data-editable>Algorithmic<br>Shadow</strong>
+                            <small data-editable>Addiction / Privacy / Bias</small>
+                        </article>
+                        <article class="road-card reveal delay-4">
+                            <span class="road-no">05</span>
+                            <strong data-editable>Healthier<br>Design</strong>
+                            <small data-editable>From attention to well-being</small>
+                        </article>
+                    </div>
+                    <div class="roadmap-footer reveal delay-4" data-editable>One thread: technology becomes culture, then responsibility.</div>
+                </div>
+            </section>
+
+            <!-- ===========================================
+                 SLIDE 03: OPENING QUESTION
+                 Speaker notes: Ask why these apps can become global even without relying only
+                 on traditional promotion. The answer is not just content volume. Their recommendation
+                 systems reduce cultural distance by finding patterns of interest and intent.
+                 This is globalization shaped by algorithms, with local behavior translated into
+                 global attraction.
+                 =========================================== -->
+            <section class="slide opening-slide" aria-label="A new digital gravity field">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">Opening Question</span>
+                        <span class="slide-no">03 / 10</span>
+                    </div>
+                    <div class="gravity-copy">
+                        <h2 class="section-title reveal-left delay-1" data-editable>A new digital <span class="blue-text">gravity field</span></h2>
+                        <p class="subtitle reveal delay-2" data-editable>Why do these apps attract young users worldwide?</p>
+                    </div>
+                    <div class="gravity-bridge" aria-label="Digital gravity supporting ideas">
+                        <article class="gravity-card reveal delay-2">
+                            <span>01</span>
+                            <strong data-editable>Global attention</strong>
+                            <p data-editable>Trends travel through feeds</p>
+                        </article>
+                        <article class="gravity-card reveal delay-3">
+                            <span>02</span>
+                            <strong data-editable>Local adaptation</strong>
+                            <p data-editable>Global trends become local habits</p>
+                        </article>
+                        <article class="gravity-card reveal delay-4">
+                            <span>03</span>
+                            <strong data-editable>Hidden engine</strong>
+                            <p data-editable>Algorithms link users, creators, and products</p>
+                        </article>
+                    </div>
+                    <div class="world-orbit reveal-scale delay-2" aria-label="Global network orbit diagram">
+                        <div class="path"></div>
+                        <div class="globe"></div>
+                        <div class="app-icon tiktok mini-icon">TikTok</div>
+                        <div class="app-icon red mini-icon">RedNote</div>
+                        <span class="node n1"></span>
+                        <span class="node red-node n2"></span>
+                        <span class="node n3"></span>
+                        <span class="node red-node n4"></span>
+                    </div>
+                    <div class="term-row reveal delay-3">
+                        <span data-editable>Globalization</span><i>+</i>
+                        <span data-editable>Glocalization</span><i>+</i>
+                        <span data-editable>Digital Gravity</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===========================================
+                 SLIDE 04: TIKTOK VS RedNote
+                 Speaker notes: Introduce the platforms as algorithmic twins with different
+                 personalities. TikTok starts from predicted interest and continuous swiping.
+                 RedNote often starts from a practical question or lifestyle search. One feels like
+                 a prophet of hidden interests; the other behaves like an external brain for
+                 decisions. Both connect culture and commerce.
+                 =========================================== -->
+            <section class="slide twins-slide" aria-label="TikTok and RedNote comparison">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">The Algorithmic Twins</span>
+                        <span class="slide-no">04 / 10</span>
+                    </div>
+                    <h2 class="section-title reveal-left delay-1" data-editable>Same gravity. <span class="blue-text">Different pull.</span></h2>
+                    <div class="twins-grid">
+                        <article class="twin-card reveal delay-2">
+                            <div class="twin-head">
+                                <div class="app-icon tiktok mini-icon">TikTok</div>
+                                <div>
+                                    <div class="app-name" data-editable>TikTok</div>
+                                    <div class="app-mode" data-editable>Discovery first</div>
+                                </div>
+                            </div>
+                            <div class="twin-list">
+                                <div class="twin-item"><span class="label">Core engine</span><span class="value" data-editable>Interest Graph</span></div>
+                                <div class="twin-item"><span class="label">Key action</span><span class="value" data-editable>Swipe</span></div>
+                                <div class="twin-item"><span class="label">AI role</span><span class="value" data-editable>A prophet of hidden interests</span></div>
+                                <div class="twin-item"><span class="label">Commerce</span><span class="value" data-editable>Interest-based e-commerce</span></div>
+                            </div>
+                        </article>
+                        <div class="vs reveal-scale delay-3">VS</div>
+                        <article class="twin-card reveal delay-2">
+                            <div class="twin-head">
+                                <div class="app-icon red mini-icon">RedNote</div>
+                                <div>
+                                    <div class="app-name" data-editable>RedNote</div>
+                                    <div class="app-mode" data-editable>Intent first</div>
+                                </div>
+                            </div>
+                            <div class="twin-list">
+                                <div class="twin-item"><span class="label">Core engine</span><span class="value" data-editable>Social Graph + Intent Graph</span></div>
+                                <div class="twin-item"><span class="label">Key action</span><span class="value" data-editable>Search</span></div>
+                                <div class="twin-item"><span class="label">AI role</span><span class="value" data-editable>An external brain for lifestyle decisions</span></div>
+                                <div class="twin-item"><span class="label">Commerce</span><span class="value" data-editable>Buyer-driven e-commerce</span></div>
+                            </div>
+                        </article>
+                    </div>
+                    <div class="twins-footer reveal delay-4" data-editable>Algorithm-Driven Culture starts with different signals.</div>
+                </div>
+            </section>
+
+            <!-- ===========================================
+                 SLIDE 05: RECOMMENDATION ENGINES
+                 Speaker notes: Explain the feedback loops. TikTok watches micro-signals such as
+                 completion, replay, likes, and comments; every swipe trains the next recommendation.
+                 RedNote combines community reviews with search intent and collaborative filtering.
+                 The key idea is that technical logic shapes cultural logic: spontaneous discovery
+                 on one side, lifestyle research on the other.
+                 =========================================== -->
+            <section class="slide engine-slide" aria-label="Recommendation engine feedback loops">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">Tech Key 01 / Recommendation</span>
+                        <span class="slide-no">05 / 10</span>
+                    </div>
+                    <h2 class="section-title reveal-left delay-1" data-editable>The engine learns from <span class="blue-text">every signal</span></h2>
+                    <div class="engine-grid">
+                        <article class="engine-panel tiktok-engine reveal delay-2">
+                            <h3 data-editable>TikTok <span>Real-time loop</span></h3>
+                            <div class="loop" aria-label="TikTok feedback loop">
+                                <div class="loop-ring"></div>
+                                <div class="loop-center" data-editable>FOR<br>YOU</div>
+                                <div class="loop-chip c1" data-editable>Completion</div>
+                                <div class="loop-chip c2" data-editable>Replay</div>
+                                <div class="loop-chip c3" data-editable>Likes</div>
+                                <div class="loop-chip c4" data-editable>Comments</div>
+                                <span class="loop-node n1"></span>
+                                <span class="loop-node n2"></span>
+                                <span class="loop-node n3"></span>
+                                <span class="loop-node n4"></span>
+                            </div>
+                        </article>
+                        <article class="engine-panel red-engine reveal delay-3">
+                            <h3 data-editable>RedNote <span>Intent loop</span></h3>
+                            <div class="loop" aria-label="RedNote intent loop">
+                                <div class="loop-ring"></div>
+                                <div class="loop-center" data-editable>VISUAL<br>SEARCH</div>
+                                <div class="loop-chip c1" data-editable>Search intent</div>
+                                <div class="loop-chip c2" data-editable>Reviews</div>
+                                <div class="loop-chip c3" data-editable>Saves</div>
+                                <div class="loop-chip c4" data-editable>Filtering</div>
+                                <span class="loop-node n1"></span>
+                                <span class="loop-node n2"></span>
+                                <span class="loop-node n3"></span>
+                                <span class="loop-node n4"></span>
+                            </div>
+                        </article>
+                    </div>
+                    <div class="engine-footer reveal delay-4">
+                        <small>Key message</small>
+                        <span data-editable>Different algorithms create different cultures.</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===========================================
+                 SLIDE 06: AI CREATION
+                 Speaker notes: Shift from recommendation to creation. AI tools lower the cost of
+                 producing content: filters, AR effects, templates, auto-editing, generative content,
+                 and virtual avatars. This creates more creators, more experiments, and more data
+                 for recommendation systems. Emphasize democratization: ordinary users can produce
+                 polished media quickly.
+                 =========================================== -->
+            <section class="slide" aria-label="AI creation tools">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">Tech Key 02 / Creation</span>
+                        <span class="slide-no">06 / 10</span>
+                    </div>
+                    <div class="creator-copy">
+                        <h2 class="section-title reveal-left delay-1" data-editable>AI makes everyone a <span class="blue-text">creator</span></h2>
+                        <p class="subtitle reveal delay-2" data-editable>Creation Tools<br>Lowered barrier<br>Shareable format</p>
+                    </div>
+                    <div class="creator-pipeline" aria-label="AI creation tool cards">
+                        <div class="tool-card reveal delay-1"><img class="tool-image" src="assets/slide06/ai-filters.jpg" alt="AI filters example"><span class="tool-no">01</span><span class="tool-name" data-editable>AI<br>Filters</span></div>
+                        <div class="tool-card reveal delay-2"><img class="tool-image" src="assets/slide06/ar-effects.jpg" alt="AR effects example"><span class="tool-no">02</span><span class="tool-name" data-editable>AR<br>Effects</span></div>
+                        <div class="tool-card reveal delay-3"><img class="tool-image" src="assets/slide06/one-tap-template.jpg" alt="One-tap templates example"><span class="tool-no">03</span><span class="tool-name" data-editable>One-tap<br>Templates</span></div>
+                        <div class="tool-card reveal delay-2"><img class="tool-image" src="assets/slide06/auto-editing.jpg" alt="Auto-editing example"><span class="tool-no">04</span><span class="tool-name" data-editable>Auto-<br>editing</span></div>
+                        <div class="tool-card reveal delay-3"><img class="tool-image" src="assets/slide06/aigc.jpg" alt="AIGC example"><span class="tool-no">05</span><span class="tool-name" data-editable>AIGC</span></div>
+                        <div class="tool-card reveal delay-4"><img class="tool-image" src="assets/slide06/virtual-avatars.jpg" alt="Virtual avatars example"><span class="tool-no">06</span><span class="tool-name" data-editable>Virtual<br>Avatars</span></div>
+                    </div>
+                    <div class="creator-footer reveal delay-4">
+                        <span data-editable>Augmented Reality</span><i>+</i>
+                        <span data-editable>AIGC</span><i>+</i>
+                        <span data-editable>Democratized Creation</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===========================================
+                 SLIDE 07: SOCIAL COMMERCE
+                 Speaker notes: Explain how attention becomes action. TikTok often creates demand:
+                 the system discovers a product for the user, and a trend makes it feel urgent.
+                 RedNote often supports a decision already forming: people search reviews, compare
+                 experiences, and rely on community trust. Both compress the journey from content
+                 to purchase inside the app ecosystem.
+                 =========================================== -->
+            <section class="slide" aria-label="Social commerce comparison">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">Tech Key 03 / Commerce</span>
+                        <span class="slide-no">07 / 10</span>
+                    </div>
+                    <h2 class="section-title reveal-left delay-1" data-editable>From attention to <span class="blue-text">purchase</span></h2>
+                    <div class="commerce-lanes">
+                        <article class="commerce-lane reveal delay-2">
+                            <div class="lane-brand">
+                                <div class="app-icon tiktok mini-icon">TikTok</div>
+                                <strong data-editable>TikTok</strong>
+                            </div>
+                            <div class="lane-flow">
+                                <div class="lane-step"><span>01 / Encounter</span><strong data-editable>Algorithmic<br>match</strong></div>
+                                <div class="flow-arrow">-&gt;</div>
+                                <div class="lane-step"><span>02 / Momentum</span><strong data-editable>"TikTok made<br>me buy it"</strong></div>
+                                <div class="flow-arrow">-&gt;</div>
+                                <div class="lane-step"><span>03 / Conversion</span><strong data-editable>Interest-based<br>purchase</strong></div>
+                            </div>
+                        </article>
+                        <article class="commerce-lane reveal delay-3">
+                            <div class="lane-brand">
+                                <div class="app-icon red mini-icon">RedNote</div>
+                                <strong data-editable>RedNote</strong>
+                            </div>
+                            <div class="lane-flow">
+                                <div class="lane-step"><span>01 / Question</span><strong data-editable>Search for<br>advice</strong></div>
+                                <div class="flow-arrow">-&gt;</div>
+                                <div class="lane-step"><span>02 / Trust</span><strong data-editable>Reviews<br>+ KOCs</strong></div>
+                                <div class="flow-arrow">-&gt;</div>
+                                <div class="lane-step"><span>03 / Decision</span><strong data-editable>Buyer-driven<br>purchase</strong></div>
+                            </div>
+                        </article>
+                    </div>
+                    <div class="commerce-footer reveal delay-4">
+                        <div class="footer-big" data-editable>Content becomes infrastructure.</div>
+                        <div class="commerce-tags">
+                            <span data-editable>Livestreaming</span>
+                            <span data-editable>In-app payment</span>
+                            <span data-editable>Social commerce</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===========================================
+                 SLIDE 08: ETHICS
+                 Speaker notes: Keep this brief. The same systems that create relevance can narrow
+                 perspective, encourage addictive behavior, and raise privacy or bias questions.
+                 Global expansion also creates cross-cultural friction. The goal is not to reject
+                 algorithms, but to ask what responsible design and informed use should look like.
+                 =========================================== -->
+            <section class="slide" aria-label="Algorithm ethics">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">A Brief Counterpoint</span>
+                        <span class="slide-no">08 / 10</span>
+                    </div>
+                    <div class="ethics-copy">
+                        <h2 class="section-title reveal-left delay-1" data-editable>The shadow of <span class="blue-text">algorithms</span></h2>
+                        <p class="subtitle reveal delay-2" data-editable>Relevance has a cost. The same gravity that attracts can also narrow our view.</p>
+                        <p class="ethics-frame reveal delay-3" data-editable>The question is not only whether algorithms are powerful, but whether they are responsible.</p>
+                    </div>
+                    <div class="ethics-orbit reveal-scale delay-2" aria-label="Algorithm ethics risks">
+                        <div class="ethics-center" data-editable>DESIGN<br>CHOICES<small>Power + responsibility</small></div>
+                        <span class="risk-chip r1"><strong data-editable>Information cocoon</strong><small data-editable>Limits exposure to diverse views</small></span>
+                        <span class="risk-chip r2"><strong data-editable>Addictive design</strong><small data-editable>Endless scrolling captures attention</small></span>
+                        <span class="risk-chip r3"><strong data-editable>Data privacy</strong><small data-editable>Personal data powers recommendation</small></span>
+                        <span class="risk-chip r4"><strong data-editable>Algorithmic bias</strong><small data-editable>Systems may reinforce hidden assumptions</small></span>
+                    </div>
+                    <div class="ethics-footer reveal delay-4" data-editable>Global platforms need cultural awareness, transparency, and user agency.</div>
+                </div>
+            </section>
+
+            <!-- ===========================================
+                 SLIDE 09: IMPROVE
+                 Speaker notes: Offer a constructive turn after the risks slide.
+                 The same recommendation systems can be optimized for well-being:
+                 time-control logic, addiction-pattern detection, and positive-interest
+                 recommendations can support healthier teenage digital habits.
+                 =========================================== -->
+            <section class="slide" aria-label="Healthier digital gravity solutions">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">Improve / Healthier Design</span>
+                        <span class="slide-no">09 / 10</span>
+                    </div>
+                    <div class="improve-intro">
+                        <h2 class="section-title reveal-left delay-1" data-editable>Improve: Healthier <span class="blue-text">Digital Gravity</span></h2>
+                        <p class="subtitle reveal delay-2" data-editable>Algorithms can be redesigned for healthier digital habits.</p>
+                    </div>
+                    <div class="improve-grid">
+                        <article class="solution-card reveal delay-2">
+                            <div class="solution-top">
+                                <h3 data-editable>Smart Time-Control</h3>
+                                <span class="solution-badge">Protection layer</span>
+                            </div>
+                            <div class="solution-visual" aria-hidden="true">
+                                <div class="time-ring">TIME</div>
+                                <div class="shield-icon"></div>
+                                <div class="slider-stack"><i></i><i></i><i></i></div>
+                            </div>
+                            <ul class="solution-list">
+                                <li data-editable>AI detects risky usage patterns</li>
+                                <li data-editable>Adaptive limits, not simple blocking</li>
+                            </ul>
+                        </article>
+                        <article class="solution-card reveal delay-3">
+                            <div class="solution-top">
+                                <h3 data-editable>Positive-Interest Recommendation</h3>
+                                <span class="solution-badge">Growth layer</span>
+                            </div>
+                            <div class="solution-visual" aria-hidden="true">
+                                <div class="rec-flow">
+                                    <div class="rec-node">Short<br>Videos</div>
+                                    <div class="rec-arrow">-&gt;</div>
+                                    <div class="rec-node">Healthy<br>Signals</div>
+                                    <div class="rec-arrow">-&gt;</div>
+                                    <div class="rec-node">Growth<br>Content</div>
+                                </div>
+                            </div>
+                            <ul class="solution-list">
+                                <li data-editable>Less addictive fragmented content</li>
+                                <li data-editable>More learning, creativity, and offline life</li>
+                            </ul>
+                        </article>
+                    </div>
+                    <div class="data-note reveal delay-4">
+                        <strong data-editable>Data highlight</strong>
+                        <div class="data-metrics">
+                            <div class="metric">
+                                <b data-editable>54.1%</b>
+                                <span data-editable>often watch short videos</span>
+                            </div>
+                            <div class="metric">
+                                <b data-editable>77.5%</b>
+                                <span data-editable>of parents worry about too much short-video time</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="improve-footer reveal delay-4" data-editable>From attention optimization to well-being optimization.</div>
+                </div>
+            </section>
+
+            <!-- ===========================================
+                 SLIDE 10: CONCLUSION
+                 Speaker notes: Close by returning to the gravity metaphor. Social media is entering
+                 an AIGC-native era, and platforms increasingly form digital tribes around shared
+                 interests rather than geography alone. TikTok and RedNote show that technology changes
+                 more than how we socialize: it reshapes global culture.
+                 =========================================== -->
+            <section class="slide" aria-label="Conclusion">
+                <div class="blue-field"></div>
+                <div class="content">
+                    <div class="topline reveal">
+                        <span class="kicker">Conclusion</span>
+                        <span class="slide-no">10 / 10</span>
+                    </div>
+                    <div class="closing-copy">
+                        <h2 class="reveal-left delay-1" data-editable>What kind of digital <span class="blue-text">planet</span> are we creating?</h2>
+                    </div>
+                    <div class="conclusion-list">
+                        <div class="conclusion-item reveal delay-1"><span>01</span><strong data-editable>Social media is entering an AIGC-native era.</strong></div>
+                        <div class="conclusion-item reveal delay-2"><span>02</span><strong data-editable>Platforms create digital tribes through shared interests.</strong></div>
+                        <div class="conclusion-item reveal delay-3"><span>03</span><strong data-editable>Technology is reshaping global culture, not only communication.</strong></div>
+                    </div>
+                    <blockquote class="quote reveal delay-3" data-editable>"The gravity of this change is increasingly coming from the East."</blockquote>
+                    <div class="closing-signoff reveal delay-4">
+                        <div class="closing-label" data-editable>Algorithm-Driven Culture / Global Tech + Culture</div>
+                        <div class="thank-you" data-editable>Thank you.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="edit-hotzone" title="Edit mode (E)"></div>
+    <button type="button" class="edit-toggle" id="editToggle" title="Edit mode (E)">EDIT</button>
+
+    <script>
+        /* ===========================================
+           INLINE TEXT EDITOR
+           Press E or hover the upper-left corner to enable editing.
+           Text changes are stored in localStorage for this browser.
+           =========================================== */
+        class DeckEditor {
+            constructor() {
+                this.isActive = false;
+                this.items = [...document.querySelectorAll("[data-editable]")];
+                this.storageKey = "algorithm-driven-culture-edits";
+                this.load();
+                this.items.forEach((item, index) => {
+                    item.dataset.editIndex = index;
+                    item.addEventListener("input", () => this.save());
+                });
+            }
+
+            toggleEditMode() {
+                this.isActive = !this.isActive;
+                document.body.classList.toggle("editing", this.isActive);
+                document.getElementById("editToggle").classList.toggle("active", this.isActive);
+                this.items.forEach(item => item.setAttribute("contenteditable", String(this.isActive)));
+            }
+
+            save() {
+                const content = this.items.map(item => item.innerHTML);
+                localStorage.setItem(this.storageKey, JSON.stringify(content));
+            }
+
+            load() {
+                try {
+                    const saved = JSON.parse(localStorage.getItem(this.storageKey) || "null");
+                    if (Array.isArray(saved)) {
+                        this.items.forEach((item, index) => {
+                            if (saved[index] !== undefined) item.innerHTML = saved[index];
+                        });
+                    }
+                } catch (error) {
+                    console.warn("Could not load saved edits.", error);
+                }
+            }
+        }
+
+        /* ===========================================
+           SLIDE PRESENTATION CONTROLLER
+           Fixed stage scaling, keyboard, wheel, and swipe navigation.
+           =========================================== */
+        class SlidePresentation {
+            constructor() {
+                this.slides = [...document.querySelectorAll(".slide")];
+                this.stage = document.getElementById("deckStage");
+                const params = new URLSearchParams(window.location.search);
+                const requestedSlide = Number.parseInt(params.get("slide") || "1", 10);
+                this.currentSlide = Number.isFinite(requestedSlide) ? requestedSlide - 1 : 0;
+                this.wheelLocked = false;
+                this.touchStartX = 0;
+                document.body.classList.toggle("qa-mode", params.get("qa") === "1");
+                this.setupStageScale();
+                this.setupNavigation();
+                this.showSlide(this.currentSlide);
+            }
+
+            setupStageScale() {
+                const scale = () => {
+                    const factor = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+                    const x = (window.innerWidth - 1920 * factor) / 2;
+                    const y = (window.innerHeight - 1080 * factor) / 2;
+                    this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+                };
+                scale();
+                window.addEventListener("resize", scale);
+            }
+
+            setupNavigation() {
+                document.addEventListener("keydown", event => {
+                    if (event.target.getAttribute("contenteditable") === "true") return;
+                    if (["ArrowRight", "ArrowDown", " ", "PageDown"].includes(event.key)) {
+                        event.preventDefault();
+                        this.next();
+                    }
+                    if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+                        event.preventDefault();
+                        this.previous();
+                    }
+                    if (event.key === "Home") this.showSlide(0);
+                    if (event.key === "End") this.showSlide(this.slides.length - 1);
+                });
+
+                document.addEventListener("wheel", event => {
+                    if (this.wheelLocked || Math.abs(event.deltaY) < 12) return;
+                    this.wheelLocked = true;
+                    event.deltaY > 0 ? this.next() : this.previous();
+                    setTimeout(() => { this.wheelLocked = false; }, 520);
+                }, { passive: true });
+
+                document.addEventListener("touchstart", event => {
+                    this.touchStartX = event.changedTouches[0].screenX;
+                }, { passive: true });
+
+                document.addEventListener("touchend", event => {
+                    const distance = event.changedTouches[0].screenX - this.touchStartX;
+                    if (Math.abs(distance) < 50) return;
+                    distance < 0 ? this.next() : this.previous();
+                }, { passive: true });
+            }
+
+            showSlide(index) {
+                this.currentSlide = Math.max(0, Math.min(index, this.slides.length - 1));
+                this.slides.forEach((slide, slideIndex) => {
+                    const isCurrent = slideIndex === this.currentSlide;
+                    slide.classList.toggle("active", isCurrent);
+                    slide.classList.toggle("visible", isCurrent);
+                });
+            }
+
+            next() { this.showSlide(this.currentSlide + 1); }
+            previous() { this.showSlide(this.currentSlide - 1); }
+        }
+
+        const editor = new DeckEditor();
+        const presentation = new SlidePresentation();
+
+        /* ===========================================
+           EDIT MODE INTERACTIONS
+           =========================================== */
+        const hotzone = document.querySelector(".edit-hotzone");
+        const editToggle = document.getElementById("editToggle");
+        let hideTimeout = null;
+
+        hotzone.addEventListener("mouseenter", () => {
+            clearTimeout(hideTimeout);
+            editToggle.classList.add("show");
+        });
+
+        hotzone.addEventListener("mouseleave", () => {
+            hideTimeout = setTimeout(() => {
+                if (!editor.isActive) editToggle.classList.remove("show");
+            }, 400);
+        });
+
+        editToggle.addEventListener("mouseenter", () => clearTimeout(hideTimeout));
+        editToggle.addEventListener("mouseleave", () => {
+            hideTimeout = setTimeout(() => {
+                if (!editor.isActive) editToggle.classList.remove("show");
+            }, 400);
+        });
+
+        editToggle.addEventListener("click", () => editor.toggleEditMode());
+        hotzone.addEventListener("click", () => editor.toggleEditMode());
+
+        document.addEventListener("keydown", event => {
+            if ((event.key === "e" || event.key === "E") && event.target.getAttribute("contenteditable") !== "true") {
+                editor.toggleEditMode();
+            }
+        });
+    </script>
+</body>
+</html>
