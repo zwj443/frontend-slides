@@ -1146,13 +1146,37 @@
         .creator-copy {
             position: absolute;
             left: 104px;
-            top: 252px;
+            top: 270px;
             width: 670px;
         }
 
         .creator-copy .subtitle {
-            margin-top: 31px;
-            width: 630px;
+            margin-top: 22px;
+            width: 680px;
+            font-size: 36px;
+            line-height: 1.32;
+        }
+
+        .creator-support {
+            display: flex;
+            width: 730px;
+            flex-wrap: nowrap;
+            gap: 12px;
+            margin-top: 40px;
+        }
+
+        .creator-support span {
+            border: 1px solid rgba(21, 89, 255, 0.24);
+            border-radius: 999px;
+            padding: 13px 18px;
+            color: var(--royal);
+            background: rgba(255, 255, 255, 0.72);
+            font-family: var(--font-mono);
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            line-height: 1.1;
+            text-transform: uppercase;
         }
 
         .creation-pathway {
@@ -2339,6 +2363,11 @@
                     <div class="creator-copy">
                         <h2 class="section-title reveal-left delay-1" data-editable>AI makes everyone a <span class="blue-text">creator</span></h2>
                         <p class="subtitle reveal delay-2" data-editable>Creation tools lower the barrier between an idea and a shareable format.</p>
+                        <div class="creator-support reveal delay-3">
+                            <span data-editable>Creation tools</span>
+                            <span data-editable>Lower barrier</span>
+                            <span data-editable>Shareable format</span>
+                        </div>
                     </div>
                     <div class="creator-pipeline" aria-label="AI creation tool cards">
                         <div class="tool-card reveal delay-1"><img class="tool-image" src="assets/slide06/ai-filters.jpg" alt="AI filters example"><span class="tool-no">01</span><span class="tool-name" data-editable>AI<br>Filters</span></div>
